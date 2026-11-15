@@ -106,6 +106,20 @@ export function attachSync(httpServer, { log = console.log } = {}) {
       socket.broadcast.emit('world', w);
     });
 
+    // Headset keyboard commands execute on the laptop, which owns scenario state.
+    socket.on('vr-command', (command, ack) => {
+      const reply = (result) => { if (typeof ack === 'function') ack(result); };
+      if (roles.get(socket.id) !== 'vr-client' || command?.type !== 'solar-storm') {
+        reply({ ok: false, reason: 'invalid-command' }); return;
+      }
+      const hostId = [...roles].find(([, role]) => role === 'spectator-host')?.[0];
+      const host = hostId && io.sockets.sockets.get(hostId);
+      if (!host) { reply({ ok: false, reason: 'no-host' }); return; }
+      host.timeout(2000).emit('vr-command', { type: 'solar-storm' }, (error, result) => {
+        reply(error || typeof result?.ok !== 'boolean' ? { ok: false, reason: 'timeout' } : result);
+      });
+    });
+
     socket.on('ping-ares', (t, ack) => typeof ack === 'function' && ack(t));
 
     socket.on('disconnect', () => {

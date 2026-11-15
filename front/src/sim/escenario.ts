@@ -16,7 +16,7 @@ import { HALF, type XZ } from '../lib/terrain';
 import { cancelarDestino, currentGoal, onWorldChange, vr } from '../vr/vrEngine';
 import { suitState } from '../vr/suit/state';
 import { bio } from '../hud/bio';
-import { mission, missionAviso } from '../mission/mission';
+import { mission, missionAviso, missionActive } from '../mission/mission';
 
 export type Donde = 'ruta' | 'mirada';
 export type EventoTerreno = 'rocks' | 'hill' | 'sand' | 'cold';
@@ -104,6 +104,16 @@ export function tormentaSolar(nivel: 'alerta' | 'critico' | null) {
   escena.spe = { nivel, llegadaT: escena.spe?.llegadaT ?? bio.t };
   escena.version++;
   abortarAlHabitat('ABORTAR · TORMENTA SOLAR', 'volver al hábitat por la ruta de escape');
+}
+
+/** A headset shortcut starts the event immediately, without the ten-minute warning. */
+export function tormentaSolarDesdeVR(): boolean {
+  if (missionActive()) {
+    Object.assign(missionAviso, { texto: 'EVENTO MANUAL · MODO LIBRE', detalle: 'Selecciona Libre para activar la tormenta con la tecla 1.', nivel: 'info', hasta: performance.now() + 5000 });
+    return false;
+  }
+  if (escena.spe?.nivel !== 'critico') tormentaSolar('critico');
+  return true;
 }
 
 function abortarAlHabitat(texto: string, detalle: string) {
