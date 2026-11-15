@@ -127,20 +127,26 @@ export function mapToWorld(px: number, py: number, w = NAV_W): { x: number; z: n
   return { x: vr.x + a * Math.cos(h) + b * Math.sin(h), z: vr.z + a * Math.sin(h) - b * Math.cos(h) };
 }
 
-export function drawNav(g: CanvasRenderingContext2D, w = NAV_W, h = NAV_H, mobile = false) {
+export function drawNav(g: CanvasRenderingContext2D, w = NAV_W, h = NAV_H, mobile = false, circleOnly = false) {
   g.clearRect(0, 0, w, h);
   // Panel
   g.fillStyle = mobile ? 'rgba(6, 14, 26, 0.38)' : 'rgba(6, 14, 26, 0.88)';
   g.strokeStyle = CYAN;
   g.lineWidth = 3;
-  g.beginPath();
-  g.roundRect(4, 4, w - 8, h - 8, 26);
-  g.fill();
-  g.stroke();
+  if (!circleOnly) {
+    g.beginPath();
+    g.roundRect(4, 4, w - 8, h - 8, 26);
+    g.fill();
+    g.stroke();
+  }
 
   const cx = w / 2;
-  const cy = MAP * 0.56; // the astronaut sits low: more of the way ahead is shown
+  const cy = MAP * (circleOnly ? 0.5 : 0.56);
   const R = MAP / 2 - 22;
+  if (circleOnly) {
+    g.save();
+    g.beginPath(); g.arc(cx, cy, R + 4, 0, Math.PI * 2); g.clip();
+  }
   const k = R / mapa.rango; // px per metre
   const head = vr.heading;
   const fx = Math.sin(head);
@@ -361,13 +367,16 @@ export function drawNav(g: CanvasRenderingContext2D, w = NAV_W, h = NAV_H, mobil
   g.strokeStyle = '#ffffff';
   g.lineWidth = 4;
   g.beginPath();
-  g.moveTo(30, MAP - 26);
-  g.lineTo(30 + bar * k, MAP - 26);
+  const barX = circleOnly ? w * 0.36 : 30;
+  const barY = circleOnly ? MAP - 58 : MAP - 26;
+  g.moveTo(barX, barY);
+  g.lineTo(barX + bar * k, barY);
   g.stroke();
   g.fillStyle = '#ffffff';
   g.font = `20px ${FONT}`;
   g.textAlign = 'left';
-  g.fillText(`${bar} m`, 30, MAP - 36);
+  g.fillText(`${bar} m`, barX, barY - 10);
+  if (circleOnly) { g.restore(); return; }
 
   // ---- Numbers ----
   let y = MAP + 44;

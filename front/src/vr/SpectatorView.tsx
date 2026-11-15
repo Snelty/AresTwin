@@ -39,7 +39,8 @@ import { jarvis } from '../jarvis/detector';
 import { bindJarvisSync, toggleJarvis } from '../jarvis/sync';
 import { NavMapDom, NavPanel } from '../nav/NavPanel';
 import { navSnapshot, stepNav } from '../nav/nav';
-import { escena, stepEscena } from '../sim/escenario';
+import { escena, stepEscena, tormentaSolarDesdeVR } from '../sim/escenario';
+import { isSolarStormShortcut, type VRCommand, type VRCommandResult } from './shortcuts';
 import { EventosTab, NavStats, Section, Toggle } from './SpectatorMenu';
 import { bd, guardarDestino, iniciarBd } from '../jarvis/bd';
 import { RANGOS, mapa } from '../nav/drawNav';
@@ -287,6 +288,12 @@ export function SpectatorView() {
   useEffect(() => {
     const socket = connect('spectator-host');
     bindJarvisSync(socket);
+    const handleVRCommand = (command: VRCommand, reply?: (result: VRCommandResult) => void) => {
+      if (command?.type !== 'solar-storm') { reply?.({ ok: false, reason: 'invalid-command' }); return; }
+      const activated = tormentaSolarDesdeVR();
+      reply?.(activated ? { ok: true } : { ok: false, reason: 'mission-mode' });
+    };
+    socket.on('vr-command', handleVRCommand);
     socket.on('state', (s: SyncState) => {
       remote.vrConnected = s.vr;
       if (s.vr && s.rotation && !remote.fresh) {
@@ -331,6 +338,7 @@ export function SpectatorView() {
     }, 100);
     return () => {
       setWorldListener(null);
+      socket.off('vr-command', handleVRCommand);
       window.clearInterval(id);
     };
   }, []);
@@ -338,6 +346,11 @@ export function SpectatorView() {
   // Keyboard + mouse look (when no headset is connected).
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
+      if (remote.vrConnected && isSolarStormShortcut(e)) {
+        e.preventDefault();
+        tormentaSolarDesdeVR();
+        return;
+      }
       keys.add(e.code);
       if (e.code === 'KeyV') setThirdPerson((t) => !t);
       if (e.code === 'KeyJ') (toggleJarvis(), force((k) => k + 1));

@@ -25,7 +25,7 @@ import { VisorHud, applyBio } from '../hud';
 import { JarvisOverlay } from '../jarvis/JarvisOverlay';
 import { bindJarvisSync, toggleJarvis } from '../jarvis/sync';
 import { applyMissionView, missionAviso } from '../mission/mission';
-import { NavPanel } from '../nav/NavPanel';
+import { VrHud } from './VrHud';
 import { iniciarBd, revRemota } from '../jarvis/bd';
 import { applyNav } from '../nav/nav';
 import { setHazardsFromNet } from '../store/simEngine';
@@ -33,6 +33,7 @@ import { useSimStore } from '../store/useSimStore';
 import { layerState, setLayer, type CapaId } from '../lib/layers';
 import { MOBILE_VR } from './mobileVR';
 import './mobileVR.css';
+import { isSolarStormShortcut, type VRCommand, type VRCommandResult } from './shortcuts';
 
 const net = { state: null as SyncState | null, routeId: -1, hazardsKey: '', avisoId: 0, pose: null as PoseNet | null, poseAt: 0, rtt: NaN };
 /** Longest the phone extrapolates a pose (s): beyond it, a stalled laptop must not drift you away. */
@@ -249,6 +250,23 @@ export function VRCanvas() {
   const secure = window.isSecureContext;
 
   useEffect(() => {
+    if (!started) return;
+    const keydown = (event: KeyboardEvent) => {
+      if (!isSolarStormShortcut(event)) return;
+      event.preventDefault();
+      const socket = connect('vr-client');
+      const failed = (detail: string) => Object.assign(missionAviso, { texto: 'TORMENTA SOLAR · TECLA 1', detalle: detail, nivel: 'info', hasta: performance.now() + 5000 });
+      if (!socket.connected) { failed('Sin conexión al servidor.'); return; }
+      socket.timeout(3500).emit('vr-command', { type: 'solar-storm' } satisfies VRCommand, (error: Error | null, result?: VRCommandResult) => {
+        if (error || !result) failed('El comando no llegó a la laptop. Intenta de nuevo.');
+        else if (!result.ok) failed(result.reason === 'mission-mode' ? 'Selecciona el modo Libre en la laptop.' : 'Abre y conecta la vista de laptop para iniciar la tormenta.');
+      });
+    };
+    window.addEventListener('keydown', keydown);
+    return () => window.removeEventListener('keydown', keydown);
+  }, [started]);
+
+  useEffect(() => {
     const socket = connect('vr-client');
     bindJarvisSync(socket);
     socket.on('state', (s: SyncState) => {
@@ -352,9 +370,9 @@ export function VRCanvas() {
         <SharedWorld />
         {started && <HeadRig mode={mode} recenter={recenter} />}
         {/* Suit holograms on the visor (one per eye in stereo) and the lens layer. */}
-        {started && <VisorHud stereo={stereo} mobile={MOBILE_VR} />}
-        {started && <JarvisOverlay stereo={stereo} mobile={MOBILE_VR} />}
-        {started && <NavPanel stereo={stereo} mobile={MOBILE_VR} />}
+        {started && <VisorHud stereo={stereo} mobile={MOBILE_VR} readouts={false} />}
+        {started && <JarvisOverlay stereo={stereo} mobile={MOBILE_VR} panels={false} />}
+        {started && <VrHud stereo={stereo} />}
         {/* Your own body: look down and you see the suit, the boots and your shadow. */}
         <SuitModel firstPerson />
         <Governor target={MOBILE_VR ? 50 : 38} min={MOBILE_VR ? 0.9 : 0.7} />

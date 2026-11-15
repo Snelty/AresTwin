@@ -265,7 +265,7 @@ function drawTape(g: CanvasRenderingContext2D, w: number, h: number, mobile = fa
   g.textAlign = 'left';
 }
 
-export function JarvisOverlay({ anchor = 'visor', stereo = false, mobile = false }: { anchor?: 'visor' | 'world'; stereo?: boolean; mobile?: boolean }) {
+export function JarvisOverlay({ anchor = 'visor', stereo = false, mobile = false, panels = true }: { anchor?: 'visor' | 'world'; stereo?: boolean; mobile?: boolean; panels?: boolean }) {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const tape = useRef<THREE.Mesh>(null);
   const tp = useMemo(() => {
@@ -289,7 +289,7 @@ export function JarvisOverlay({ anchor = 'visor', stereo = false, mobile = false
     stepDetector(state.camera, Math.min(dt, 0.1));
     const m = tape.current;
     if (!m) return;
-    m.visible = jarvis.on && anchor === 'visor';
+    m.visible = jarvis.on && anchor === 'visor' && panels;
     if (!m.visible) return;
     const t = state.clock.elapsedTime;
     if (t - tp.at > 1 / (mobile ? 10 : 20)) {
@@ -313,9 +313,9 @@ export function JarvisOverlay({ anchor = 'visor', stereo = false, mobile = false
       <mesh ref={tape} material={tapeMat} renderOrder={1001} frustumCulled={false} visible={false}>
         <planeGeometry args={[1, 1]} />
       </mesh>
-      {anchor === 'visor' && <FichaPanel stereo={stereo} mobile={mobile} />}
+      {anchor === 'visor' && panels && <FichaPanel stereo={stereo} mobile={mobile} />}
       {anchor === 'visor' && <Reticle />}
-      {Array.from({ length: mobile ? 4 : SLOTS }).map((_, i) => (
+      {Array.from({ length: !panels ? 2 : mobile ? 4 : SLOTS }).map((_, i) => (
         <Slot key={i} i={i} mobile={mobile} />
       ))}
     </>

@@ -313,7 +313,7 @@ export function updateCrisis(dt: number) {
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
-export function VisorHud({ anchor = 'visor', stereo = false, fxStrength = 1, mobile = false }: { anchor?: 'visor' | 'body'; stereo?: boolean; fxStrength?: number; mobile?: boolean }) {
+export function VisorHud({ anchor = 'visor', stereo = false, fxStrength = 1, mobile = false, readouts = true }: { anchor?: 'visor' | 'body'; stereo?: boolean; fxStrength?: number; mobile?: boolean; readouts?: boolean }) {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const root = useRef<THREE.Group>(null);
   const left = useRef<THREE.Mesh>(null);
@@ -369,14 +369,15 @@ export function VisorHud({ anchor = 'visor', stereo = false, fxStrength = 1, mob
     // Redraw the panels at 15 Hz.
     if (t - s.draw > 1 / (mobile ? 8 : 15)) {
       s.draw = t;
-      if (mobile) {
+      if (readouts && mobile) {
         drawMobileVitals(o2.g, bp.g);
-      } else {
+      } else if (readouts) {
         drawO2(o2.g, o2.c.width, o2.c.height);
         drawBio(bp.g, bp.c.width, bp.c.height, trace, s.head);
       }
       s.alert = drawAlert(al.g, al.c.width, al.c.height);
-      o2.tex.needsUpdate = bp.tex.needsUpdate = al.tex.needsUpdate = true;
+      if (readouts) o2.tex.needsUpdate = bp.tex.needsUpdate = true;
+      al.tex.needsUpdate = true;
     }
     for (const m of Object.values(mats)) m.uniforms.uTime.value = t;
     mats.alert.uniforms.uAlpha.value = 0.75 + 0.25 * Math.sin(t * 6);
@@ -385,7 +386,7 @@ export function VisorHud({ anchor = 'visor', stereo = false, fxStrength = 1, mob
     if (!g || !left.current || !right.current || !top.current) return;
     top.current.visible = s.alert;
     // Normal view: only the safety alerts and the lens effects; the readouts come back with JARVIS.
-    left.current.visible = right.current.visible = jarvis.on;
+    left.current.visible = right.current.visible = jarvis.on && readouts;
 
     if (anchor === 'visor') {
       // The group rides with the eyes; panels sit near the lower corners of the view, turned
