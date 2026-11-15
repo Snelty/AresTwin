@@ -14,13 +14,14 @@ import { missionView } from '../mission/mission';
 import { LEVEL_COLOR } from '../hud/bio';
 import { nav } from './nav';
 import { suitState } from '../vr/suit/state';
+import { wrapCanvasText } from '../lib/canvasText';
 
 const FONT = 'ui-monospace, Consolas, "Courier New", monospace';
 const CYAN = '#00f3ff';
 const GOLD = '#ffd84d';
 const fmt = (v: number, d = 1) => v.toFixed(d).replace('.', ',');
 export const NAV_W = 520;
-export const NAV_H = 880;
+export const NAV_H = 1120;
 const MAP = 520; // the map is the square on top
 /** Map range: metres from the astronaut to the rim (the laptop zooms it: 40 / 65 / 120 / 240). */
 export const mapa = { rango: 65 };
@@ -129,7 +130,7 @@ export function mapToWorld(px: number, py: number, w = NAV_W): { x: number; z: n
 export function drawNav(g: CanvasRenderingContext2D, w = NAV_W, h = NAV_H) {
   g.clearRect(0, 0, w, h);
   // Panel
-  g.fillStyle = 'rgba(6, 14, 26, 0.62)';
+  g.fillStyle = 'rgba(6, 14, 26, 0.88)';
   g.strokeStyle = CYAN;
   g.lineWidth = 3;
   g.beginPath();
@@ -370,13 +371,14 @@ export function drawNav(g: CanvasRenderingContext2D, w = NAV_W, h = NAV_H) {
 
   // ---- Numbers ----
   let y = MAP + 44;
-  const line = (txt: string, col = '#d8e6f2', size = 32, bold = false) => {
+  const line = (txt: string, col = '#e5eff7', size = 40, bold = false) => {
     g.fillStyle = col;
-    let s = size;
-    g.font = `${bold ? 'bold ' : ''}${s}px ${FONT}`;
-    while (s > 20 && g.measureText(txt).width > w - 48) g.font = `${bold ? 'bold ' : ''}${(s -= 2)}px ${FONT}`;
-    g.fillText(txt, 24, y);
-    y += s + 14;
+    const s = Math.max(36, size);
+    g.font = `${bold ? '700' : '600'} ${s}px ${FONT}`;
+    for (const row of wrapCanvasText(g, txt, w - 48)) {
+      g.fillText(row, 24, y);
+      y += s + 10;
+    }
   };
   g.textAlign = 'left';
   if (!nav.on) {
@@ -385,15 +387,18 @@ export function drawNav(g: CanvasRenderingContext2D, w = NAV_W, h = NAV_H) {
     line('sin destino: la ruta vuelve aquí', '#8aa0b4', 24);
   } else {
     line(`► ${nav.label}`, GOLD, 38, true);
-    line(`${Math.round(nav.dRuta)} m · ${mmss(nav.etaS)} · llega ${hhmm(nav.llegaH)}`, '#ffffff', 32, true);
+    line(`${Math.round(nav.dRuta)} m · ${mmss(nav.etaS)}`, '#ffffff', 42, true);
+    line(`Llega ${hhmm(nav.llegaH)}`, '#ffffff');
     const a = nav.atrasoS;
     const sched = !Number.isFinite(a) ? 'horario: empieza al caminar' : Math.abs(a) < 20 ? '● en horario' : a > 0 ? `▼ ${mmss(a)} atrasado` : `▲ ${mmss(a)} adelantado`;
     const turn = nav.giro === 0 ? `↑ recto ${Math.round(nav.giroM)} m` : `${nav.giro < 0 ? '↰ izq.' : '↱ der.'} en ${Math.round(nav.giroM)} m`;
-    line(`${sched} · ${turn}`, Number.isFinite(a) && a > 60 ? '#ffe0a0' : '#d8e6f2', 30);
+    line(sched, Number.isFinite(a) && a > 60 ? '#ffe0a0' : '#d8e6f2', 36);
+    line(turn, '#d8e6f2', 36);
     // O₂ on arrival: the safety colour of the margin it leaves to walk home.
     const m = nav.o2Vuelta > 0.05 ? 100 * (nav.o2Llega / nav.o2Vuelta - 1) : Infinity;
     const col = nav.o2Llega <= 0 ? LEVEL_COLOR.rojo : m > 30 ? LEVEL_COLOR.ok : m > 15 ? LEVEL_COLOR.ambar : LEVEL_COLOR.rojo;
-    line(`O₂ al llegar ${fmt(Math.max(0, nav.o2Llega))} L · volver ${fmt(nav.o2Vuelta)} L`, col, 30, true);
+    line(`O₂ llegada ${fmt(Math.max(0, nav.o2Llega))} L`, col, 36, true);
+    line(`O₂ regreso ${fmt(nav.o2Vuelta)} L`, col, 36, true);
     if (Math.abs(nav.pendPct) > 12) line(`${nav.pendPct > 0 ? '⬈ subida' : '⬊ bajada'} ${Math.round(Math.abs(nav.pendPct))} % en ${Math.round(nav.pendM)} m`, '#d8e6f2', 28);
   }
   if (nav.spe) {
