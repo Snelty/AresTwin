@@ -9,7 +9,8 @@
 import { useEffect, useRef } from 'react';
 import { rt } from '../store/simEngine';
 import { useSimStore } from '../store/useSimStore';
-import { DEVIATION_M, GOAL_RADIUS, currentGoal, recalculateRoute, vr } from './vrEngine';
+import { DEVIATION_M, goalRadius, currentGoal, recalculateRoute, vr } from './vrEngine';
+import { shelterState } from '../sim/shelter';
 import { projectOnPolyline } from './routeGaze';
 
 const CHECK_MS = 100;
@@ -41,7 +42,7 @@ export function useDynamicRoute(enabled: boolean) {
         // No route (standing at home): once the astronaut walks out, draw the way back.
         const g = currentGoal();
         const now = performance.now();
-        if (g && Math.hypot(g.x - vr.x, g.z - vr.z) > GOAL_RADIUS && now - lastRecalc.current > MIN_GAP_MS) {
+        if (g && !(g.code === 'A' && shelterState.inside) && Math.hypot(g.x - vr.x, g.z - vr.z) > goalRadius(g) && now - lastRecalc.current > MIN_GAP_MS) {
           lastRecalc.current = now;
           recalculateRoute(g.code === 'A' ? 'de vuelta al hábitat' : 'hacia el destino');
         }

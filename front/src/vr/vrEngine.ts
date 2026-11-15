@@ -4,20 +4,25 @@
 //
 // Reuses the shared runtime `rt` (read by the unchanged terrain, sky, route
 // ribbon and drone components) but never runs the old rover simulation.
-import { cellOf, computeCostmap, costGrid } from '../lib/costmap';
+import { computeCostmap } from '../lib/costmap';
 import { updateCostTexture, revealCircle } from '../lib/gpuMaps';
 import { planAStar } from '../lib/pathfinding';
-import { BASE_A, CANYON, HALF, ROCKS, heightAt, sandAt, type XZ } from '../lib/terrain';
+import { BASE_A, CANYON, HALF, heightAt, sandAt, type XZ } from '../lib/terrain';
 import { REAL } from '../lib/realTerrain';
-import { walkSpeed } from '../lib/energy';
+import { walkSpeed, edgeO2 } from '../lib/energy';
 import { makeRoute, rt } from '../store/simEngine';
 import { useSimStore } from '../store/useSimStore';
 import { sunAt } from '../lib/marsTime';
 import { suitState } from './suit/state';
+import { airlockCorridor, airlockWorld, moduleLocal, habitatEntrance, habitatRefuge } from '../lib/habitat';
+import { moveWithCollisions } from '../lib/walking';
+import { shelterState } from '../sim/shelter';
 
 export const EYE_HEIGHT = 1.7;
 export const DEVIATION_M = 3.5; // off the polyline by more than this → re-plan
 export const GOAL_RADIUS = 4;
+export const goalRadius = (g: Goal) => g.code === 'A' ? 0.4 : GOAL_RADIUS;
+const homeGoal = (): Goal => ({ code: 'A', ...habitatRefuge() });
 
 export interface Goal {
   code: string; // site code, or 'A' for the habitat
@@ -51,7 +56,8 @@ const bumpRoute = () => useSimStore.setState((s) => ({ routeVersion: s.routeVers
 export function initVR() {
   // Without a destination picked on the map, the route always leads home: from
   // wherever the astronaut stands to the habitat (the safe default of an EVA).
-  vr.goals = [{ code: 'A', x: BASE_A.x, z: BASE_A.z }];
+  vr.goals = [homeGoal()];
+  shelterState.inside = false;
   vr.goalIdx = 0;
   vr.x = BASE_A.x;
   vr.z = BASE_A.z;
@@ -91,7 +97,7 @@ function syncRuntime() {
 export function recalculateRoute(reason: string) {
   const goal = currentGoal();
   if (!goal) return;
-  if (goal.code === 'A' && Math.hypot(goal.x - vr.x, goal.z - vr.z) <= GOAL_RADIUS) {
+  if (goal.code === 'A' && (shelterState.inside || Math.hypot(goal.x - vr.x, goal.z - vr.z) <= goalRadius(goal))) {
     // Already home: nothing to walk (the route comes back as soon as you leave).
     rt.route = makeRoute([{ x: vr.x, z: vr.z }]);
     rt.sAstro = 0;
@@ -104,15 +110,32 @@ export function recalculateRoute(reason: string) {
     return;
   }
   const t0 = performance.now();
-  const res = planAStar({ x: vr.x, z: vr.z }, goal);
-  rt.route = makeRoute(res.points);
+  const start = { x: vr.x, z: vr.z };
+  const inAccess = airlockCorridor(start);
+  const entrance = habitatEntrance();
+  const home = goal.code === 'A';
+  const res = planAStar(inAccess ? entrance : start, home ? entrance : goal);
+  // The grid is wider than the door: reach its outside approach first, then follow the access axis.
+  const access = inAccess
+    ? [start, ...(moduleLocal(start).x < 1.45 ? [habitatRefuge()] : []), airlockWorld(3)]
+    : [];
+  const points = home && inAccess
+    ? [start, ...(moduleLocal(start).x >= 1.45 ? [airlockWorld(3)] : []), goal]
+    : [
+    ...(inAccess ? [...access, entrance] : []), ...res.points,
+    ...(home && res.ok ? [entrance, goal] : []),
+  ];
+  rt.route = makeRoute(res.ok || (home && inAccess) ? points : [start]);
   rt.sAstro = 0;
   vr.routeId++;
   vr.recalcs++;
-  vr.routeLitres = res.litres;
+  const accessLength = home && inAccess ? rt.route.len
+    : (inAccess ? Math.hypot(start.x - entrance.x, start.z - entrance.z) : 0)
+      + (home ? Math.hypot(goal.x - entrance.x, goal.z - entrance.z) : 0);
+  vr.routeLitres = (home && inAccess ? 0 : res.litres) + edgeO2(accessLength, 0, 1 + 0.9 * sandAt(entrance.x, entrance.z)).litres;
   vr.lastRecalcReason = reason;
   vr.message = res.ok
-    ? `Ruta ${reason}: ${rt.route.len.toFixed(0)} m, ${res.litres.toFixed(1)} L de O₂, A* ${res.expanded} nodos en ${(performance.now() - t0).toFixed(1)} ms`
+    ? `Ruta ${reason}: ${rt.route.len.toFixed(0)} m, ${vr.routeLitres.toFixed(1)} L de O₂, A* ${res.expanded} nodos en ${(performance.now() - t0).toFixed(1)} ms`
     : 'SIN RUTA SEGURA hacia el objetivo';
   bumpRoute();
   onWorldChange?.();
@@ -123,8 +146,6 @@ export let onWorldChange: (() => void) | null = null;
 export const setWorldListener = (fn: (() => void) | null) => {
   onWorldChange = fn;
 };
-
-const walkable = (x: number, z: number) => Number.isFinite(costGrid.cost[cellOf({ x, z })]);
 
 /**
  * Move the astronaut from keyboard input, relative to the view yaw.
@@ -152,35 +173,12 @@ export function moveAstronaut(fwd: number, strafe: number, viewYaw: number, run:
   const step = v * dt;
   let nx = vr.x + dirX * step;
   let nz = vr.z + dirZ * step;
-  // Slide along obstacles instead of stopping dead.
-  if (!walkable(nx, nz)) {
-    if (walkable(nx, vr.z)) nz = vr.z;
-    else if (walkable(vr.x, nz)) nx = vr.x;
-    else {
-      nx = vr.x;
-      nz = vr.z;
-    }
-  }
-  // Boulders are solid: slide around them instead of walking through (the route only marks them as slow).
-  for (let pass = 0; pass < 2; pass++)
-    for (const r of ROCKS) {
-      const reach = r.s * 0.95 + 0.26; // the rock plus half the width of a suited astronaut
-      const dx = nx - r.x;
-      const dz = nz - r.z;
-      const d2 = dx * dx + dz * dz;
-      if (d2 >= reach * reach) continue;
-      const d = Math.sqrt(d2);
-      if (d < 1e-4) {
-        nx = r.x - dirZ * reach;
-        nz = r.z + dirX * reach;
-      } else {
-        nx = r.x + (dx / d) * reach;
-        nz = r.z + (dz / d) * reach;
-      }
-    }
   const lim = HALF - 12; // the costmap marks the last 12 m of the tile as outside the site
   nx = Math.max(-lim, Math.min(lim, nx));
   nz = Math.max(-lim, Math.min(lim, nz));
+  const collision = moveWithCollisions({ x: vr.x, z: vr.z }, { x: nx, z: nz });
+  nx = collision.x;
+  nz = collision.z;
   // Speed is what was actually covered: pressed against a rock, the stride shortens with it.
   vr.speed = Math.hypot(nx - vr.x, nz - vr.z) / dt;
   vr.x = nx;
@@ -193,7 +191,7 @@ export function moveAstronaut(fwd: number, strafe: number, viewYaw: number, run:
 function checkGoal() {
   const g = currentGoal();
   if (!g) return;
-  if (Math.hypot(g.x - vr.x, g.z - vr.z) > GOAL_RADIUS) return;
+  if (Math.hypot(g.x - vr.x, g.z - vr.z) > goalRadius(g)) return;
   if (g.code === 'A') {
     // Home is the goal that never ends: arriving just clears the route.
     if (rt.route.n > 1) recalculateRoute('llegada al hábitat');
@@ -212,7 +210,7 @@ export function setDestino(x: number, z: number) {
   const lim = HALF - 14;
   const g: Goal = { code: 'D', x: Math.max(-lim, Math.min(lim, x)), z: Math.max(-lim, Math.min(lim, z)) };
   // One destination at a time, then home.
-  vr.goals = [g, { code: 'A', x: BASE_A.x, z: BASE_A.z }];
+  vr.goals = [g, homeGoal()];
   vr.goalIdx = 0;
   recalculateRoute('hacia el destino marcado');
 }
@@ -220,7 +218,7 @@ export function setDestino(x: number, z: number) {
 /** Drop the picked destination (back to the tour). */
 export function cancelarDestino() {
   if (currentGoal()?.code !== 'D') return;
-  vr.goals = [{ code: 'A', x: BASE_A.x, z: BASE_A.z }];
+  vr.goals = [homeGoal()];
   vr.goalIdx = 0;
   recalculateRoute('destino cancelado: de vuelta al hábitat');
 }

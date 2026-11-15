@@ -3,6 +3,7 @@
 // the simulation never disagree about where the ground is.
 import { fbm, ridged, mulberry32 } from './noise';
 import { REAL, REAL_HALF } from './realTerrain';
+import { HABITAT_OFFSET, HABITAT_PAD_LEVEL_RADIUS, HABITAT_PAD_BLEND_RADIUS } from './habitatLayout';
 
 export interface XZ {
   x: number;
@@ -237,7 +238,8 @@ export function buildHeightfield(
       }
     : (x: number, z: number) => rawSample(x, z, macroAmp) + (dem ? sampleGrid(dem, x, z, 1, 0) * DEM_AMPLITUDE : 0) + tiltAt(x, z);
 
-  const padA = sample(BASE_A.x, BASE_A.z);
+  const habitatX = BASE_A.x + HABITAT_OFFSET, habitatZ = BASE_A.z + HABITAT_OFFSET;
+  const padA = sample(habitatX, habitatZ);
   const padB = sample(TARGET_B.x, TARGET_B.z);
 
   for (let j = 0; j < HF_RES; j++) {
@@ -247,8 +249,9 @@ export function buildHeightfield(
       let h = sample(x, z);
       const k = j * HF_RES + i;
       sandGrid[k] = sandOut;
-      const dA = Math.hypot(x - BASE_A.x, z - BASE_A.z);
-      if (dA < 13) h += (padA - h) * (1 - smoothstep(8, 13, dA));
+      // Level the actual building and its supports, including the displaced far side of the pad.
+      const dA = Math.hypot(x - habitatX, z - habitatZ);
+      if (dA < HABITAT_PAD_BLEND_RADIUS) h += (padA - h) * (1 - smoothstep(HABITAT_PAD_LEVEL_RADIUS, HABITAT_PAD_BLEND_RADIUS, dA));
       const dB = real ? Infinity : Math.hypot(x - TARGET_B.x, z - TARGET_B.z);
       if (dB < 10) h += (padB - h) * (1 - smoothstep(5, 10, dB));
       const edge = smoothstep(HALF - 14, HALF, Math.max(Math.abs(x), Math.abs(z)));
@@ -265,6 +268,7 @@ export function buildHeightfield(
 /** Add Gaussian hills on top of the base terrain (h metres high, r metres wide). */
 export function applyBumps(bumps: { x: number; z: number; h: number; r: number }[]) {
   heights.set(baseHeights);
+  const habitatX = BASE_A.x + HABITAT_OFFSET, habitatZ = BASE_A.z + HABITAT_OFFSET;
   for (const b of bumps) {
     const lim = b.r * 2.6;
     const i0 = Math.max(0, Math.floor((b.x - lim + HALF) / HF_STEP));
@@ -276,7 +280,9 @@ export function applyBumps(bumps: { x: number; z: number; h: number; r: number }
         const x = -HALF + i * HF_STEP;
         const z = -HALF + j * HF_STEP;
         const d2 = ((x - b.x) ** 2 + (z - b.z) ** 2) / (b.r * b.r);
-        heights[j * HF_RES + i] += b.h * Math.exp(-d2);
+        // Scenario hills cannot lift the foundation or open a gap beneath the habitat.
+        const foundationBlend = smoothstep(HABITAT_PAD_LEVEL_RADIUS, HABITAT_PAD_BLEND_RADIUS, Math.hypot(x - habitatX, z - habitatZ));
+        heights[j * HF_RES + i] += b.h * Math.exp(-d2) * foundationBlend;
       }
   }
   terrainInfo.version++;

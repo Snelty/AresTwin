@@ -39,7 +39,8 @@ import { jarvis } from '../jarvis/detector';
 import { bindJarvisSync, toggleJarvis } from '../jarvis/sync';
 import { NavMapDom, NavPanel } from '../nav/NavPanel';
 import { navSnapshot, stepNav } from '../nav/nav';
-import { escena, stepEscena, executeVRCommand } from '../sim/escenario';
+import { escena, stepEscena, stepHabitatShelter, executeVRCommand } from '../sim/escenario';
+import { shelterState, HABITAT_TEMPERATURE_C } from '../sim/shelter';
 import { stepTemperature, temperature, temperatureSnapshot } from '../sim/temperature';
 import { bio } from '../hud/bio';
 import { vrCommandForKey, type VRCommand, type VRCommandResult } from './shortcuts';
@@ -47,7 +48,8 @@ import { EventosTab, NavStats, Section, Toggle } from './SpectatorMenu';
 import { bd, guardarDestino, iniciarBd } from '../jarvis/bd';
 import { RANGOS, mapa } from '../nav/drawNav';
 import { nav } from '../nav/nav';
-import { routeGazeTarget } from './routeGaze';
+import { createRouteGazeState, stepRouteGaze } from './routeGaze';
+import { walkingSegmentClear } from '../lib/walking';
 
 const keys = new Set<string>();
 /** Hands-free walking: look at the ground or along the suggested route. */
@@ -84,7 +86,8 @@ function HostLoop({ thirdPerson }: { thirdPerson: boolean }) {
   const target = useMemo(() => new THREE.Vector3(), []);
   const camPos = useMemo(() => new THREE.Vector3(), []);
   const follow = useRef({ ready: false });
-  const routeLook = useRef({ id: -1, seconds: 0 });
+  const routeLook = useRef(createRouteGazeState());
+  const blockedWalk = useRef({ seconds: 0, cooldown: 0 });
   // Body velocity (smoothed), sent with the pose so the phone can extrapolate across network jitter.
   const vel = useRef({ x: 0, z: 0, px: NaN, pz: NaN });
 
@@ -108,14 +111,12 @@ function HostLoop({ thirdPerson }: { thirdPerson: boolean }) {
     // Hands-free walking. Looking along the ribbon follows its bends; keys win immediately.
     const pitchDeg = (lookPitch * 180) / Math.PI;
     const manual = MANUAL_MOVEMENT_KEYS.some(key => keys.has(key));
-    const canAutoWalk = gaze.on && !manual && !missionActive() && !auto.on;
-    const routeTarget = canAutoWalk ? routeGazeTarget(rt.route, {
+    const canAutoWalk = gaze.on && !manual && !missionActive() && !auto.on && !shelterState.inside;
+    const routeTarget = stepRouteGaze(routeLook.current, rt.route, {
       x: vr.x, z: vr.z, eyeY: heightAt(vr.x, vr.z) + EYE_HEIGHT, yaw: lookYaw, pitch: lookPitch,
-    }, heightAt) : null;
-    if (routeLook.current.id !== vr.routeId) { routeLook.current.id = vr.routeId; routeLook.current.seconds = 0; }
-    routeLook.current.seconds = routeTarget ? routeLook.current.seconds + dt : 0;
-    gaze.followingRoute = !!routeTarget && routeLook.current.seconds >= 0.3;
-    const groundIntent = canAutoWalk && -pitchDeg > gaze.thr ? Math.min(1, (-pitchDeg - gaze.thr) / 8) : 0;
+    }, heightAt, canAutoWalk, dt, walkingSegmentClear);
+    gaze.followingRoute = !!routeTarget;
+    const groundIntent = canAutoWalk && !routeLook.current.blocked && -pitchDeg > gaze.thr ? Math.min(1, (-pitchDeg - gaze.thr) / 8) : 0;
     const want = gaze.followingRoute ? 1 : groundIntent;
     if (!want) gaze.ramp = 0;
     else gaze.ramp += (want - gaze.ramp) * (1 - Math.exp(-dt * 6));
@@ -129,11 +130,19 @@ function HostLoop({ thirdPerson }: { thirdPerson: boolean }) {
       Math.min(gaze.speed * gaze.ramp, gaze.followingRoute ? routeTarget!.distance / dt : Infinity));
     else moveAstronaut(fwd, strafe, viewYaw(), keys.has('ShiftLeft') || keys.has('ShiftRight'), dt);
 
+    const blocked = blockedWalk.current;
+    blocked.cooldown = Math.max(0, blocked.cooldown - dt);
+    blocked.seconds = canAutoWalk && (routeLook.current.blocked || (gaze.followingRoute && vr.speed < 0.08)) ? blocked.seconds + dt : 0;
+    if (blocked.seconds > 0.8 && blocked.cooldown === 0) {
+      recalculateRoute('rodear obstáculo'); blocked.seconds = 0; blocked.cooldown = 2;
+    }
+
     // The head turns first; past ~55° the astronaut turns to follow it.
     suitState.lookYaw = auto.on ? auto.yaw : lookYaw; // (test autopilot: the head looks where it walks)
     suitState.lookPitch = auto.on ? 0 : lookPitch;
     updateBody(suitState.lookYaw, dt);
     stepDrone(dt);
+    stepHabitatShelter();
     if (!missionActive()) {
       stepBio(dt); // mission: the suit numbers come from the messages
       stepEscena(dt);
@@ -453,7 +462,8 @@ export function SpectatorView() {
 
       {/* Side menu: icon tabs + the open tab. Folds away with M or ☰. */}
       <div className="absolute bottom-2 left-1/2 -translate-x-1/2 pointer-events-none rounded bg-black/25 px-2 py-0.5 font-mono text-[12px] text-slate-200" aria-label="Latencia de conexión">
-        {(temperature.cold || temperature.thermal || temperature.baselineC - temperature.temperatureC > 1) && <span className="mr-3 text-cyan-100">{temperature.temperatureC.toFixed(0)} °C · {temperature.thermal ? 'Térmico suelo' : 'Frío'} (sim.)</span>}
+        {shelterState.inside ? <span className="mr-3 text-emerald-200">REFUGIADO · {HABITAT_TEMPERATURE_C} °C · protegido del frío y SPE</span>
+          : (temperature.cold || temperature.thermal || temperature.baselineC - temperature.temperatureC > 1) && <span className="mr-3 text-cyan-100">{temperature.temperatureC.toFixed(0)} °C · {temperature.thermal ? 'Térmico suelo' : 'Frío'} (sim.)</span>}
         {Number.isFinite(hud.ping) ? `${hud.ping.toFixed(0)} ms` : '— ms'}
       </div>
       {tab && (

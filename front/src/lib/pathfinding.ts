@@ -6,6 +6,7 @@
 //    matrix D(i, j) and, on the reversed graph, for the return field R(p).
 import { COST_N, CELL, DIRS, cellCenter, cellOf, costGrid, isWalkableCell } from './costmap';
 import { heightAt, type XZ } from './terrain';
+import { walkingSegmentClear } from './walking';
 
 export { DIRS };
 export type Algo = 'greedy' | 'astar';
@@ -109,6 +110,23 @@ export function nearestWalkable(k: number): number {
   return k;
 }
 
+/** The containing/nearest planner cell can be across a boulder from a free walking position. */
+function accessibleCell(p: XZ): number {
+  const k = cellOf(p), ci = k % COST_N, cj = (k / COST_N) | 0;
+  const centre = cellCenter(ci, cj);
+  if (isWalkableCell(k) && walkingSegmentClear(p, centre)) return k;
+  const candidates: { k: number; p: XZ; d: number }[] = [];
+  for (let j = Math.max(0, cj - 4); j <= Math.min(COST_N - 1, cj + 4); j++)
+    for (let i = Math.max(0, ci - 4); i <= Math.min(COST_N - 1, ci + 4); i++) {
+      const n = j * COST_N + i;
+      if (!isWalkableCell(n)) continue;
+      const q = cellCenter(i, j);
+      candidates.push({ k: n, p: q, d: Math.hypot(q.x - p.x, q.z - p.z) });
+    }
+  candidates.sort((a, b) => a.d - b.d);
+  return candidates.find(c => walkingSegmentClear(p, c.p))?.k ?? -1;
+}
+
 function pathSums(cells: number[]) {
   let litres = 0;
   let seconds = 0;
@@ -128,8 +146,9 @@ function pathSums(cells: number[]) {
 export function planAStar(start: XZ, goal: XZ): PlanResult {
   const t0 = performance.now();
   const { edgeL, wMinPerM } = costGrid;
-  const s = nearestWalkable(cellOf(start));
-  const g = nearestWalkable(cellOf(goal));
+  const s = accessibleCell(start);
+  const g = accessibleCell(goal);
+  if (s < 0 || g < 0) return { algo: 'astar', ok: false, points: [start], computeMs: performance.now() - t0, expanded: 0, litres: Infinity, seconds: Infinity };
   const G = new Float32Array(NN).fill(Infinity);
   const came = new Int32Array(NN).fill(-1);
   const closed = new Uint8Array(NN);
@@ -340,10 +359,15 @@ export function resample(pts: XZ[], step = 1): XZ[] {
 
 export function cellsToPoints(cells: number[], start: XZ, goal: XZ): XZ[] {
   const pts = cells.map((c) => cellCenter(c % COST_N, (c / COST_N) | 0));
-  pts[0] = { ...start };
-  if (pts.length > 1) pts[pts.length - 1] = { ...goal };
-  else pts.push({ ...goal });
-  return resample(chaikin(pts, 3), 1);
+  // Preserve the first/last cell centres: replacing them can cut through a nearby boulder.
+  pts.unshift({ ...start }); pts.push({ ...goal });
+  // Smoothing must not erase the planner's clearance around stones or steep terrain.
+  for (const iterations of [3, 2, 1, 0]) {
+    const candidate = iterations ? chaikin(pts, iterations) : pts;
+    const sampled = resample(candidate, 0.5);
+    if (sampled.every((p, i) => i === 0 || walkingSegmentClear(sampled[i - 1], p))) return sampled;
+  }
+  return resample(pts, 0.5);
 }
 
 export const pathHeight = (p: XZ) => heightAt(p.x, p.z);

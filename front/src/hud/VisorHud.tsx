@@ -26,6 +26,7 @@ import { missionAviso, missionView } from '../mission/mission';
 import { jarvis } from '../jarvis/detector';
 import { nav } from '../nav/nav';
 import { coolingAmount, temperature } from '../sim/temperature';
+import { shelterState } from '../sim/shelter';
 
 const CYAN = '#00f3ff';
 const D = 0.6; // metres from the eyes to the hologram plane
@@ -136,20 +137,20 @@ function drawO2(g: CanvasRenderingContext2D, w: number, h: number) {
   const x = 250;
   g.fillStyle = CYAN;
   g.font = `26px ${FONT}`;
-  g.fillText('EVA-SUIT · O₂', x, 56);
+  g.fillText(shelterState.inside ? 'HÁBITAT · AIRE SEGURO' : 'EVA-SUIT · O₂', x, 56);
   g.fillStyle = '#ffffff';
   g.font = `bold 56px ${FONT}`;
   g.fillText(`${fmt(bio.O2)} L`, x, 112);
   g.font = `30px ${FONT}`;
   g.fillStyle = '#d8e6f2';
-  g.fillText(`≈ ${Math.floor(minutesLeft())} min${bio.timeScale > 1 ? `  (×${bio.timeScale})` : ''}`, x, 152);
+  g.fillText(shelterState.inside ? 'Tanque en reserva' : `≈ ${Math.floor(minutesLeft())} min${bio.timeScale > 1 ? `  (×${bio.timeScale})` : ''}`, x, 152);
   const m = margenPct();
   g.fillStyle = col;
   g.font = `bold 30px ${FONT}`;
   g.fillText(Number.isFinite(m) ? `margen ${Math.round(m)} %` : 'en el hábitat', x, 196);
   g.fillStyle = '#d8e6f2';
   g.font = `26px ${FONT}`;
-  g.fillText(Number.isFinite(bio.R) ? `volver: ${fmt(bio.R)} L · mín ${fmt(o2Minimo())} L` : 'sin camino de vuelta', x, 232);
+  g.fillText(shelterState.inside ? 'Consumo EVA detenido' : Number.isFinite(bio.R) ? `volver: ${fmt(bio.R)} L · mín ${fmt(o2Minimo())} L` : 'sin camino de vuelta', x, 232);
 }
 
 /** Mobile readouts trade the small ECG and metadata for larger essential values. */
@@ -167,8 +168,8 @@ function drawMobileVitals(oxygen: CanvasRenderingContext2D, pulse: CanvasRenderi
     g.fillStyle = color; g.font = `bold 36px ${FONT}`; g.fillText(footer, 24, 238);
     g.restore();
   };
-  draw(oxygen, oxygenColor, 'OXÍGENO', `${fmt(bio.O2)} L`, `≈ ${Math.floor(minutesLeft())} min`,
-    Number.isFinite(bio.R) ? `Regreso ${fmt(bio.R)} L` : 'SIN RUTA DE REGRESO');
+  draw(oxygen, oxygenColor, shelterState.inside ? 'HÁBITAT · O₂' : 'OXÍGENO', `${fmt(bio.O2)} L`, shelterState.inside ? 'Tanque en reserva' : `≈ ${Math.floor(minutesLeft())} min`,
+    shelterState.inside ? 'Consumo EVA detenido' : Number.isFinite(bio.R) ? `Regreso ${fmt(bio.R)} L` : 'SIN RUTA DE REGRESO');
   draw(pulse, pulseColor, 'PULSO', `${Math.round(bio.FC)} lpm`, `VO₂ ${fmt(bio.VO2, 2)} L/min`, `${Math.round(bio.M)} W`);
 }
 
@@ -207,6 +208,7 @@ function drawBio(g: CanvasRenderingContext2D, w: number, h: number, trace: Float
 }
 
 function drawAlert(g: CanvasRenderingContext2D, w: number, h: number): boolean {
+  if (shelterState.inside) { g.clearRect(0, 0, w, h); return false; }
   const lv = level();
   const now = performance.now();
   // Priority: empty tank > the optimizer's 4 s notice (replan / abort) > abort zone > solar storm > cold > heart.
@@ -304,7 +306,7 @@ export const crisis = { red: 0, frost: 0, hyp: 0, beat: 0, blur: 0 };
 
 export function updateCrisis(dt: number) {
   const lv = level();
-  const targetRed = (bio.O2 <= 0 ? 1 : lv === 'rojo' ? 0.85 : lv === 'ambar' ? 0.3 : 0) + (bio.FC > 170 ? 0.35 : bio.FC > 150 ? 0.15 : 0);
+  const targetRed = shelterState.inside ? 0 : (bio.O2 <= 0 ? 1 : lv === 'rojo' ? 0.85 : lv === 'ambar' ? 0.3 : 0) + (bio.FC > 170 ? 0.35 : bio.FC > 150 ? 0.15 : 0);
   const k = 1 - Math.exp(-dt * 3);
   crisis.red += (Math.min(1, targetRed) - crisis.red) * k;
   crisis.frost += (bio.frost - crisis.frost) * k;
@@ -447,7 +449,7 @@ export function VisorHud({ anchor = 'visor', stereo = false, fxStrength = 1, mob
       u.uHyp.value = crisis.hyp * fxStrength;
       u.uTime.value = t;
       u.uAspect.value = camera.aspect / (stereo ? 2 : 1);
-      u.uCold.value = temperature.thermal ? 0 : coolingAmount();
+      u.uCold.value = temperature.thermal || shelterState.inside ? 0 : coolingAmount();
       lens.current.visible = crisis.frost + crisis.red + crisis.hyp + u.uCold.value > 0.01;
     }
   }, 0.5);
