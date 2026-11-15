@@ -1,5 +1,6 @@
 // Base habitat (A), science-site survey flags and the active storm shelter.
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { useSimStore } from '../../store/useSimStore';
@@ -9,6 +10,8 @@ import { siteName } from '../../i18n';
 import { UNLIT } from '../../render/unlit';
 import { REAL } from '../../lib/realTerrain';
 import { MineralHolograms } from './MineralHolograms';
+import { airlockOpen, HABITAT_OFFSET, MODULE_ANGLE, MODULE_DISTANCE } from '../../lib/habitat';
+import { vr } from '../../vr/vrEngine';
 
 const shelterRing = new THREE.Color('#ffb070').multiplyScalar(UNLIT);
 
@@ -21,13 +24,19 @@ const pole = new THREE.MeshStandardMaterial({ color: '#c9c9c9', roughness: 0.4, 
 const cells = new THREE.MeshStandardMaterial({ color: '#0c1a3a', roughness: 0.2, metalness: 0.6 });
 const windowGlow = new THREE.MeshStandardMaterial({ color: '#201a10', roughness: 0.2, emissive: '#ffd9a0', emissiveIntensity: 0.12 });
 const lampGlow = new THREE.MeshStandardMaterial({ color: '#222', emissive: '#fff1d6', emissiveIntensity: 0.6 });
+const lining = new THREE.MeshStandardMaterial({ color: '#b7c2c5', roughness: 0.8, side: THREE.BackSide, emissive: '#b7c2c5', emissiveIntensity: 0.35 });
+const deck = new THREE.MeshStandardMaterial({ color: '#627279', roughness: 0.9, emissive: '#627279', emissiveIntensity: 0.25 });
 
 /** Surface habitat: inflatable dome under a regolith berm, three rigid modules, airlock, power and comms. */
 function Habitat() {
   useSimStore((s) => s.terrainVersion);
-  const y = heightAt(BASE_A.x, BASE_A.z);
+  const door = useRef<THREE.Group>(null);
+  useFrame((_, dt) => {
+    if (door.current) door.current.position.z += ((airlockOpen(vr) ? 1.4 : 0) - door.current.position.z) * (1 - Math.exp(-dt * 12));
+  });
+  const y = heightAt(BASE_A.x + HABITAT_OFFSET, BASE_A.z + HABITAT_OFFSET);
   return (
-    <group position={[BASE_A.x - 7, y, BASE_A.z - 7]}>
+    <group position={[BASE_A.x + HABITAT_OFFSET, y, BASE_A.z + HABITAT_OFFSET]}>
       {/* compacted pad */}
       <mesh position-y={0.04} material={pad} receiveShadow>
         <cylinderGeometry args={[9, 9.5, 0.1, 64]} />
@@ -52,11 +61,11 @@ function Habitat() {
       </mesh>
       {/* rigid modules */}
       {[0, 1, 2].map((i) => {
-        const a = (i / 3) * Math.PI * 2 + 0.4;
+        const a = (i / 3) * Math.PI * 2 + MODULE_ANGLE;
         return (
-          <group key={i} position={[Math.cos(a) * 5.3, 1.3, Math.sin(a) * 5.3]} rotation-y={-a}>
+          <group key={i} position={[Math.cos(a) * MODULE_DISTANCE, 1.3, Math.sin(a) * MODULE_DISTANCE]} rotation-y={-a}>
             <mesh rotation-z={Math.PI / 2} material={hull} castShadow receiveShadow>
-              <cylinderGeometry args={[1.2, 1.2, 3.6, 40]} />
+              <cylinderGeometry args={[1.2, 1.2, 3.6, 40, 1, i === 0]} />
             </mesh>
             {[-1.2, 0, 1.2].map((x) => (
               <mesh key={x} position-x={x} rotation-y={Math.PI / 2} material={trim}>
@@ -64,12 +73,12 @@ function Habitat() {
               </mesh>
             ))}
             {/* end cap with a hatch */}
-            <mesh position-x={1.82} rotation-z={Math.PI / 2} material={hullDark} castShadow>
+            <mesh position-x={i === 0 ? -1.82 : 1.82} rotation-z={Math.PI / 2} material={hullDark} castShadow>
               <cylinderGeometry args={[1.22, 1.22, 0.1, 40]} />
             </mesh>
-            <mesh position-x={1.89} rotation-z={Math.PI / 2} material={trim}>
+            {i !== 0 && <mesh position-x={1.89} rotation-z={Math.PI / 2} material={trim}>
               <cylinderGeometry args={[0.62, 0.62, 0.06, 32]} />
-            </mesh>
+            </mesh>}
             {/* portholes */}
             {[-0.8, 0.5].map((x) => (
               <mesh key={x} position={[x, 0.35, 1.19]} material={windowGlow}>
@@ -77,7 +86,7 @@ function Habitat() {
               </mesh>
             ))}
             {/* cradle */}
-            {[-1.1, 1.1].map((x) => (
+            {(i === 0 ? [] : [-1.1, 1.1]).map((x) => (
               <mesh key={x} position={[x, -1.02, 0]} material={hullDark} castShadow>
                 <boxGeometry args={[0.25, 0.5, 2.1]} />
               </mesh>
@@ -85,12 +94,29 @@ function Habitat() {
             {i === 0 && (
               <>
                 {/* airlock: door, frame, step and work light */}
-                <mesh position={[2.0, -0.18, 0]} material={hullDark} castShadow>
-                  <boxGeometry args={[0.16, 1.9, 1.1]} />
+                <mesh rotation-z={Math.PI / 2} material={lining}>
+                  <cylinderGeometry args={[1.19, 1.19, 3.6, 40, 1, true]} />
                 </mesh>
-                <mesh position={[2.09, -0.18, 0]} material={trim}>
-                  <boxGeometry args={[0.03, 1.7, 0.9]} />
+                <mesh position={[0, -1.27, 0]} material={deck} receiveShadow>
+                  <boxGeometry args={[3.6, 0.06, 1.7]} />
                 </mesh>
+                {[-1, 1].map(side => <mesh key={side} position={[1.92, -0.18, side * 0.9]} material={hullDark}>
+                  <boxGeometry args={[0.4, 2.25, 0.7]} />
+                </mesh>)}
+                <mesh position={[1.92, 0.99, 0]} material={hullDark}>
+                  <boxGeometry args={[0.4, 0.42, 1.1]} />
+                </mesh>
+                <mesh position={[0.7, 0.96, 0]} material={lampGlow}>
+                  <boxGeometry args={[1.5, 0.06, 0.18]} />
+                </mesh>
+                <group ref={door}>
+                  <mesh position={[2.0, -0.18, 0]} material={hullDark} castShadow>
+                    <boxGeometry args={[0.16, 1.9, 1.1]} />
+                  </mesh>
+                  <mesh position={[2.09, -0.18, 0]} material={trim}>
+                    <boxGeometry args={[0.03, 1.7, 0.9]} />
+                  </mesh>
+                </group>
                 <mesh position={[2.35, -1.2, 0]} material={trim} castShadow receiveShadow>
                   <boxGeometry args={[0.7, 0.08, 1.3]} />
                 </mesh>

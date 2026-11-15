@@ -7,6 +7,7 @@
 import { rt } from '../store/simEngine';
 import { useSimStore } from '../store/useSimStore';
 import { HALF, WORLD_SIZE, BASE_A, heightAt } from '../lib/terrain';
+import { habitatRefuge } from '../lib/habitat';
 import { REAL, MINERALES } from '../lib/realTerrain';
 import { SITES } from '../lib/sites';
 import { vr } from '../vr/vrEngine';
@@ -329,7 +330,8 @@ export function drawNav(g: CanvasRenderingContext2D, w = NAV_W, h = NAV_H, mobil
       g.fillText(`${Math.round(Math.hypot(x - vr.x, z - vr.z))} m`, sx - (dx / d) * 34, sy - (dy / d) * 34 + 7);
     }
   };
-  pin(BASE_A.x, BASE_A.z, 'H', '#ffffff');
+  const home = missionView.activo ? BASE_A : habitatRefuge();
+  pin(home.x, home.z, 'H', '#ffffff');
   if (nav.on && nav.code !== 'A') pin(nav.gx, nav.gz, nav.code === 'D' ? '◎' : '★', GOLD);
 
   // Rim, north mark and the astronaut.

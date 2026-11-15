@@ -15,11 +15,13 @@
 // Orders of magnitude for the demo, not validated physiology (CLAUDE.md §16).
 import { costGrid, cellOf } from '../lib/costmap';
 import { dijkstra, fieldAt, type Field } from '../lib/pathfinding';
-import { KAPPA_O2, pandolfWatts, walkSpeed } from '../lib/energy';
+import { KAPPA_O2, pandolfWatts, walkSpeed, edgeO2 } from '../lib/energy';
 import { BASE_A, heightAt, sandAt } from '../lib/terrain';
 import { mulberry32 } from '../lib/noise';
 import { rt } from '../store/simEngine';
 import { vr } from '../vr/vrEngine';
+import { habitatEntrance, habitatRefuge, airlockCorridor } from '../lib/habitat';
+import { shelterState } from '../sim/shelter';
 
 export const O2_INICIAL_L = 40; // CLAUDE.md §7
 export const REST_W = 250; // §10.4
@@ -38,6 +40,7 @@ export interface BioNet {
   frost: number; // 0..1 cold on the visor
   hyp: number; // 0..1 hypoxia (tank empty)
   ts: number; // time scale
+  sheltered?: boolean;
 }
 
 export const bio = {
@@ -88,15 +91,20 @@ export function ensureReturnField() {
   const key = `${costGrid.version}|${BASE_A.x.toFixed(2)},${BASE_A.z.toFixed(2)}`;
   if (field && key === fieldKey) return field;
   fieldKey = key;
-  field = dijkstra(BASE_A, false);
+  field = dijkstra(habitatEntrance(), false);
   returnField.version++;
   return field;
 }
 
 /** O₂ (L) needed to walk home from a point, ∞ if there is no way back. */
 export function returnLitres(x: number, z: number): number {
+  if (shelterState.inside && x === vr.x && z === vr.z) return 0;
+  const p = { x, z }, refuge = habitatRefuge();
+  const entrance = habitatEntrance();
+  const accessCost = (p: { x: number; z: number }) => edgeO2(Math.hypot(p.x - refuge.x, p.z - refuge.z), 0, 1 + 0.9 * sandAt(p.x, p.z)).litres;
+  if (airlockCorridor(p)) return accessCost(p);
   const f = ensureReturnField();
-  return fieldAt(f, { x, z });
+  return fieldAt(f, p) + accessCost(entrance);
 }
 
 // ---------------------------------------------------------------------------
@@ -106,6 +114,7 @@ export const o2Minimo = () => (Number.isFinite(bio.msgO2min) ? bio.msgO2min : (1
 /** margen_pct of §9; Infinity at the habitat (R = 0). The optimizer sends 9999 there. */
 export const margenPct = () => (Number.isFinite(bio.msgMargen) ? (bio.msgMargen >= 999 ? Infinity : bio.msgMargen) : bio.R > 0.05 ? 100 * (bio.O2 / bio.R - 1) : Infinity);
 export function level(): Level {
+  if (shelterState.inside) return 'ok';
   const m = margenPct();
   if (bio.O2 <= 0) return 'rojo';
   return m > 30 ? 'ok' : m > 15 ? 'ambar' : 'rojo';
@@ -148,16 +157,17 @@ export function stepBio(dtReal: number) {
     fcJitter = Math.max(-3, Math.min(3, gauss() * 1.5));
   }
   bio.VO2 = bio.M * KAPPA_O2 * (1 + bio.eps) * bio.fatigue;
-  bio.O2 = Math.max(0, bio.O2 - ((bio.VO2 + bio.leakLpm) * dts) / 60);
+  if (!shelterState.inside) bio.O2 = Math.max(0, bio.O2 - ((bio.VO2 + bio.leakLpm) * dts) / 60);
   bio.FC = Math.max(60, Math.min(190, 70 + 55 * bio.VO2 + fcJitter));
   bio.R = returnLitres(vr.x, vr.z);
 
   // Cold on the visor: a cold zone under your feet, the night, or the "frío extremo" event.
   const k = cellOf({ x: vr.x, z: vr.z });
-  const coldTarget = bio.coldManual || costGrid.hazard[k] === 1 ? 1 : rt.sun.elevation < 0 ? 0.55 : costGrid.shade[k] ? 0.15 : 0;
+  const coldTarget = shelterState.inside ? 0 : bio.coldManual || costGrid.hazard[k] === 1 ? 1 : rt.sun.elevation < 0 ? 0.55 : costGrid.shade[k] ? 0.15 : 0;
   bio.frost += (coldTarget - bio.frost) * (1 - Math.exp(-dtReal / (coldTarget > bio.frost ? 5 : 3)));
   // Hypoxia builds up over ~15 s once the tank is empty.
-  bio.hyp += ((bio.O2 <= 0 ? 1 : 0) - bio.hyp) * (1 - Math.exp(-dtReal / (bio.O2 <= 0 ? 15 : 4)));
+  const hypoxic = !shelterState.inside && bio.O2 <= 0;
+  bio.hyp += ((hypoxic ? 1 : 0) - bio.hyp) * (1 - Math.exp(-dtReal / (hypoxic ? 15 : 4)));
 }
 
 export function resetBio(litres = O2_INICIAL_L) {
@@ -173,12 +183,14 @@ export const bioSnapshot = (): BioNet => ({
   frost: bio.frost,
   hyp: bio.hyp,
   ts: bio.timeScale,
+  sheltered: shelterState.inside,
   om: Number.isFinite(bio.msgO2min) ? bio.msgO2min : undefined,
   mg: Number.isFinite(bio.msgMargen) ? bio.msgMargen : undefined,
 });
 
 /** Phone: take the laptop's numbers (smoothed visuals are done by the views). */
 export function applyBio(b: BioNet) {
+  shelterState.inside = b.sheltered === true;
   bio.remote = true;
   bio.O2 = b.o2;
   bio.O2_0 = b.o0;

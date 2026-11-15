@@ -15,16 +15,18 @@ export function projectOnPolyline(r: Route, px: number, pz: number): { dist: num
   return { dist, s };
 }
 
-interface GazePose { x: number; z: number; eyeY: number; yaw: number; pitch: number }
+export interface GazePose { x: number; z: number; eyeY: number; yaw: number; pitch: number }
+type CanWalk = (from: { x: number; z: number }, to: { x: number; z: number }) => boolean;
 
 /** Looking along the next metres of the route enables a short, curve-following step. */
-export function routeGazeTarget(r: Route, pose: GazePose, height: (x: number, z: number) => number): { yaw: number; distance: number } | null {
+export function routeGazeTarget(r: Route, pose: GazePose, height: (x: number, z: number) => number, following = false, canWalk?: CanWalk): { yaw: number; distance: number } | null {
   if (r.n < 2 || r.len < 0.25 || pose.pitch > 15 * Math.PI / 180 || pose.pitch < -Math.PI / 3) return null;
   const projection = projectOnPolyline(r, pose.x, pose.z);
   if (projection.dist > 3.5 || r.len - projection.s < 0.25) return null;
   const point = { x: 0, z: 0 };
   let lookingAtRoute = false;
-  for (const ahead of [3, 5, 8, 12]) {
+  // Dense samples avoid gaps between the old four aim points, especially over uneven slopes.
+  for (let ahead = 2; ahead <= 18; ahead += 0.5) {
     sampleRoute(r, Math.min(r.len, projection.s + ahead), point);
     const dx = point.x - pose.x, dz = point.z - pose.z;
     const distance = Math.hypot(dx, dz);
@@ -32,14 +34,32 @@ export function routeGazeTarget(r: Route, pose: GazePose, height: (x: number, z:
     const yaw = Math.atan2(dx, -dz);
     const yawError = Math.atan2(Math.sin(yaw - pose.yaw), Math.cos(yaw - pose.yaw));
     const pitch = Math.atan2(height(point.x, point.z) + 0.05 - pose.eyeY, distance);
-    if (Math.abs(yawError) <= 18 * Math.PI / 180 && Math.abs(pitch - pose.pitch) <= 12 * Math.PI / 180) {
+    if (Math.abs(yawError) <= (following ? 28 : 18) * Math.PI / 180 && Math.abs(pitch - pose.pitch) <= (following ? 18 : 12) * Math.PI / 180) {
       lookingAtRoute = true; break;
     }
   }
   if (!lookingAtRoute) return null;
   // A short target follows bends instead of cutting straight across the terrain.
-  sampleRoute(r, Math.min(r.len, projection.s + 1.2), point);
-  const dx = point.x - pose.x, dz = point.z - pose.z;
-  const distance = Math.hypot(dx, dz);
-  return distance > 0.05 ? { yaw: Math.atan2(dx, -dz), distance } : null;
+  for (const ahead of [1.2, 0.8, 0.4, 0.15, 0]) {
+    sampleRoute(r, Math.min(r.len, projection.s + ahead), point);
+    const dx = point.x - pose.x, dz = point.z - pose.z;
+    const distance = Math.hypot(dx, dz);
+    if (distance > 0.05 && (!canWalk || canWalk(pose, point))) return { yaw: Math.atan2(dx, -dz), distance };
+  }
+  return null;
+}
+
+export const createRouteGazeState = () => ({ seconds: 0, following: false, blocked: false });
+/** Wider release angles absorb head jitter. Aligned replans retain the active walk. */
+export function stepRouteGaze(state: ReturnType<typeof createRouteGazeState>, r: Route, pose: GazePose,
+  height: (x: number, z: number) => number, enabled: boolean, dt: number, canWalk?: CanWalk) {
+  const aimed = enabled ? routeGazeTarget(r, pose, height, state.following) : null;
+  state.blocked = false;
+  if (!aimed) { state.seconds = 0; state.following = false; return null; }
+  state.seconds += dt;
+  state.following ||= state.seconds >= 0.3;
+  if (!state.following) return null;
+  const target = canWalk ? routeGazeTarget(r, pose, height, true, canWalk) : aimed;
+  state.blocked = !target;
+  return target;
 }

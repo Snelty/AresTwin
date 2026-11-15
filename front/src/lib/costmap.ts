@@ -10,6 +10,8 @@
 import { HALF, ROCKS, WORLD_SIZE, canyonMask, heightAt, sandAt, slopeDegAt, type XZ } from './terrain';
 import { edgeO2, type EdgeCost } from './energy';
 import { REAL } from './realTerrain';
+import { habitatFootprint } from './habitat';
+import { rebuildRockColliders, rockSolid, rocksSegmentClear } from './rockCollision';
 
 // 2.5 m cells in both modes; on the real window this is exactly the optimizer's 192 × 192 grid.
 export const COST_N = REAL ? 192 : 96;
@@ -52,6 +54,7 @@ const NN = COST_N * COST_N;
 export const costGrid = {
   /** Relative per-cell cost (L of O₂ per metre on flat ground × risk), ∞ = blocked. For display. */
   cost: new Float32Array(NN),
+  terrainWalkable: new Uint8Array(NN), // slope and bounds only; rocks/buildings have precise collision
   cls: new Uint8Array(NN),
   slope: new Float32Array(NN),
   sand: new Float32Array(NN),
@@ -126,6 +129,7 @@ export const UNSEEN_FACTOR = 1.2;
 
 export function computeCostmap(hazards: Hazard[], canyonScanned: boolean, sun: SunInput | null = null, known?: (x: number, z: number) => boolean) {
   const { cost, cls, slope, sand, hazard, height, factor, edgeL, edgeT } = costGrid;
+  rebuildRockColliders(hazards);
 
   // Large boulders block a cell; medium ones only slow the walk.
   const rockBlock = new Uint8Array(NN);
@@ -158,6 +162,7 @@ export function computeCostmap(hazards: Hazard[], canyonScanned: boolean, sun: S
     let f = 1;
     // The flattened skirt around the 240 m tile is outside the mapped site.
     const outside = Math.max(Math.abs(p.x), Math.abs(p.z)) > HALF - 12;
+    costGrid.terrainWalkable[k] = outside || slope[k] > MAX_SLOPE ? 0 : 1;
     let blocked = outside || slope[k] > MAX_SLOPE || rockBlock[k] === 1;
     unknown = !canyonScanned && canyonMask(p.x, p.z) > 0.3 ? 1 : 0;
     if (unknown) f *= UNCHARTED_FACTOR;
@@ -187,6 +192,7 @@ export function computeCostmap(hazards: Hazard[], canyonScanned: boolean, sun: S
     const eta = 1 + 0.9 * sand[k] + rockSlow[k];
     const flat = edgeO2(1, 0, eta, tmpEdge).litres;
     const steep = 1 + Math.max(0, slope[k] - 8) * 0.12;
+    blocked ||= habitatFootprint(p, CELL * 0.5) || rockSolid(p);
     cost[k] = blocked ? Infinity : flat * f * steep;
     cls[k] = blocked ? 2 : unknown ? 3 : f > 1.3 || slope[k] > 16 || sand[k] > 0.45 ? 1 : 0;
     etaGrid[k] = eta;
@@ -220,6 +226,10 @@ export function computeCostmap(hazards: Hazard[], canyonScanned: boolean, sun: S
       if (blocked || Math.abs(G) > MAX_GRADE) {
         edgeL[e] = Infinity;
         edgeT[e] = Infinity;
+        continue;
+      }
+      if (!rocksSegmentClear(cellCenter(i, j), cellCenter(ni, nj))) {
+        edgeL[e] = edgeT[e] = Infinity;
         continue;
       }
       const eta = (etaGrid[k] + etaGrid[n]) / 2;

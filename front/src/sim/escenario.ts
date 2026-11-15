@@ -13,7 +13,8 @@
 import { addUserHazard, recost, removeHazard, rt, sampleRoute } from '../store/simEngine';
 import { useSimStore } from '../store/useSimStore';
 import { HALF, type XZ } from '../lib/terrain';
-import { cancelarDestino, currentGoal, onWorldChange, vr } from '../vr/vrEngine';
+import { cancelarDestino, currentGoal, onWorldChange, recalculateRoute, vr } from '../vr/vrEngine';
+import { shelterState, updateShelter } from './shelter';
 import { suitState } from '../vr/suit/state';
 import { bio } from '../hud/bio';
 import { mission, missionAviso, missionActive } from '../mission/mission';
@@ -36,6 +37,20 @@ export const escena = {
 let avisoId = 0;
 /** The dust is being eased by a scenario event (otherwise the laptop slider owns it). */
 let polvoGestion = false;
+export function stepHabitatShelter() {
+  if (missionActive()) { shelterState.inside = false; return; }
+  const transition = updateShelter(vr);
+  if (!transition) return;
+  if (transition === 'entered') {
+    mission.farViewUntil = 0;
+    if (currentGoal()?.code === 'A') recalculateRoute('refugio alcanzado');
+    aviso('REFUGIO ALCANZADO', 'Hábitat presurizado · protegido del frío y la tormenta solar', 'info');
+  } else {
+    if (escena.spe?.nivel === 'critico' && currentGoal()?.code !== 'A') cancelarDestino();
+    recalculateRoute('salida del hábitat');
+    aviso('SALIDA AL EXTERIOR', escena.spe ? 'Tormenta solar activa · volvé al refugio' : bio.coldManual ? 'Frío extremo activo · protección del traje' : 'Traje EVA activo', escena.spe ? 'alerta' : 'info');
+  }
+}
 function aviso(texto: string, detalle: string, nivel: 'info' | 'alerta', ms = 5000) {
   const hasta = performance.now() + ms;
   Object.assign(missionAviso, { texto, detalle, nivel, hasta });
@@ -136,6 +151,10 @@ export function executeVRCommand(command: VRCommand): VRCommandResult {
 }
 
 function abortarAlHabitat(texto: string, detalle: string) {
+  if (shelterState.inside) {
+    aviso('REFUGIO SEGURO', 'Tormenta solar activa en el exterior · permanecé dentro', 'info');
+    return;
+  }
   // Any picked destination is dropped: the route goes home.
   if (currentGoal()?.code !== 'A') cancelarDestino();
   mission.farViewUntil = performance.now() + 3000; // §14: 3 s in the far view

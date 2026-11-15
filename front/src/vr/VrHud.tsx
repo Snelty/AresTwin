@@ -10,6 +10,7 @@ import { SITES } from '../lib/sites';
 import { vrHudLayout } from './vrHudLayout';
 import { HUD_FEATURES } from '../hud/features';
 import { coolingAmount, temperature, THERMAL_COLORS, THERMAL_MIN_C, THERMAL_MAX_C } from '../sim/temperature';
+import { shelterState, HABITAT_TEMPERATURE_C } from '../sim/shelter';
 
 const D = 0.6;
 const FONT = 'ui-monospace, Consolas, monospace';
@@ -66,10 +67,13 @@ function climateReadout(p: ReturnType<typeof panel>, latencyMs: number) {
   const g = p.context;
   background(g, 512, 160, CYAN);
   g.fillStyle = '#ffffff'; g.font = `bold 48px ${FONT}`;
-  g.fillText(`${Math.round(temperature.temperatureC)} °C`, 16, 50);
+  g.fillText(`${Math.round(shelterState.inside ? HABITAT_TEMPERATURE_C : temperature.temperatureC)} °C`, 16, 50);
   g.textAlign = 'right'; g.fillStyle = CYAN; g.font = `bold 25px ${FONT}`;
-  g.fillText(temperature.thermal ? 'TÉRMICO · SIM.' : 'FRÍO · SIM.', 496, 46);
-  if (temperature.thermal) {
+  g.fillText(shelterState.inside ? 'REFUGIADO' : temperature.thermal ? 'TÉRMICO · SIM.' : 'FRÍO · SIM.', 496, 46);
+  if (shelterState.inside) {
+    g.textAlign = 'center'; g.font = `bold 25px ${FONT}`;
+    g.fillText('Protegido del frío y SPE', 256, 100);
+  } else if (temperature.thermal) {
     const gradient = g.createLinearGradient(16, 0, 496, 0);
     THERMAL_COLORS.forEach((color, i) => gradient.addColorStop(i / (THERMAL_COLORS.length - 1), color));
     g.fillStyle = gradient; g.fillRect(16, 66, 480, 12);
@@ -98,13 +102,13 @@ export function VrHud({ stereo, latencyMs = NaN }: { stereo: boolean; latencyMs?
     if (!group.current || !oxygen.current || !pulse.current || !info.current || !map.current || !latency.current || !climate.current) return;
     group.current.visible = true;
     oxygen.current.visible = pulse.current.visible = map.current.visible = jarvis.on;
-    const showClimate = temperature.cold || temperature.thermal || coolingAmount() > 0.02;
+    const showClimate = shelterState.inside || temperature.cold || temperature.thermal || coolingAmount() > 0.02;
     climate.current.visible = showClimate;
     latency.current.visible = !showClimate;
     const t = state.clock.elapsedTime;
     if (t - last.current.vitals >= 0.125) {
       last.current.vitals = t;
-      vitals(assets.oxygen, 'OXÍGENO', `${fmt(bio.O2)} L`, `${Math.round(100 * bio.O2 / Math.max(bio.O2_0, 1))}% · ≈${Math.floor(minutesLeft())} min`, LEVEL_COLOR[level()]);
+      vitals(assets.oxygen, shelterState.inside ? 'HÁBITAT · O₂' : 'OXÍGENO', `${fmt(bio.O2)} L`, shelterState.inside ? 'Tanque en reserva' : `${Math.round(100 * bio.O2 / Math.max(bio.O2_0, 1))}% · ≈${Math.floor(minutesLeft())} min`, LEVEL_COLOR[level()]);
       vitals(assets.pulse, 'PULSO', `${Math.round(bio.FC)} lpm`, `VO₂ ${fmt(bio.VO2)} L/min`, bio.FC > 170 ? LEVEL_COLOR.rojo : bio.FC > 150 ? LEVEL_COLOR.ambar : CYAN);
       if (HUD_FEATURES.analysis) {
         analysis(assets.analysis);

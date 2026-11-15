@@ -26,6 +26,7 @@ import { currentGoal, vr } from '../vr/vrEngine';
 import { mission, missionActive, missionView } from '../mission/mission';
 import { enuToScene } from '../lib/realTerrain';
 import { escena } from '../sim/escenario';
+import { shelterState } from '../sim/shelter';
 
 const HOUR = 3699;
 const SAND_FACTOR = 3; // Mars seconds per local hour (CLAUDE.md §5)
@@ -235,8 +236,8 @@ export function stepNav(dt: number) {
   }
   const g = g0;
   nav.on = !!g;
-  nav.polvo = rt.stormIntensity;
-  nav.spe = missionActive() ? ((missionView.spe as 'alerta' | 'critico' | null) ?? null) : escena.spe?.nivel ?? null;
+  nav.polvo = shelterState.inside ? 0 : rt.stormIntensity;
+  nav.spe = shelterState.inside ? null : missionActive() ? ((missionView.spe as 'alerta' | 'critico' | null) ?? null) : escena.spe?.nivel ?? null;
   nav.speQuedaS = !missionActive() && escena.spe ? Math.max(0, escena.spe.llegadaT - bio.t) : NaN;
   const f = ensureReturnField();
   nav.speVueltaS = fieldAt(f, { x: vr.x, z: vr.z }, 'time');

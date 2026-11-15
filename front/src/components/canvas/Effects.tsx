@@ -15,6 +15,7 @@ import { crisis } from '../../hud/VisorHud';
 import { BlendFunction, ToneMappingMode } from 'postprocessing';
 import { rt } from '../../store/simEngine';
 import { Q, toneMap } from '../../render/quality';
+import { shelterState } from '../../sim/shelter';
 
 const MODE = { agx: ToneMappingMode.AGX, aces: ToneMappingMode.ACES_FILMIC, neutral: ToneMappingMode.NEUTRAL }[toneMap];
 
@@ -35,7 +36,7 @@ export function Effects() {
     return () => window.clearInterval(id);
   }, []);
   useFrame(() => {
-    const k = rt.stormIntensity;
+    const k = shelterState.inside ? 0 : rt.stormIntensity;
     if (noise.current?.blendMode?.opacity) noise.current.blendMode.opacity.value = 0.035 + k * 0.1;
     // Lens damage grows with the crisis: fringing beats with the heart, colour drains with hypoxia.
     const c = Math.min(1, crisis.red * 0.6 + crisis.hyp);
