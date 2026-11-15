@@ -50,12 +50,13 @@ export function NavPanel({ stereo = false, onPick, mobile = false }: { stereo?: 
     const halfH = D * Math.tan(((camera.fov ?? 70) * Math.PI) / 360);
     const halfW = halfH * (camera.aspect / (stereo ? 2 : 1));
     // Upper-right corner, under the heading tape and above the biometrics panel.
-    const ph = Math.min(halfH * (mobile ? 1.24 : 1.20), halfW * (mobile ? 0.8 : 0.58) * (NAV_H / NAV_W));
-    const pw = ph * (NAV_W / NAV_H);
+    // Keep the map and font width while shortening the card after removing details.
+    const pw = Math.min(halfH * (mobile ? 1.24 : 1.20) * (NAV_W / 1120), halfW * (mobile ? 0.8 : 0.58));
+    const ph = pw * (NAV_H / NAV_W);
     m.position.copy(camera.position);
     m.quaternion.copy(camera.quaternion);
     m.translateX(halfW - pw * 0.5 - halfW * 0.04);
-    m.translateY(halfH * 0.72 - ph * 0.5);
+    m.translateY(halfH * 0.65 - ph * 0.5);
     m.translateZ(-D);
     m.rotateY(-0.08);
     m.scale.set(pw, ph, 1);

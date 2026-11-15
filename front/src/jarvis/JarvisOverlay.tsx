@@ -155,7 +155,8 @@ function Slot({ i, mobile = false }: { i: number; mobile?: boolean }) {
     const f = frame.current;
     const l = label.current;
     if (!f || !l) return;
-    f.visible = l.visible = !!det && jarvis.on;
+    f.visible = !!det && jarvis.on;
+    l.visible = !!det && jarvis.on && jarvis.foco?.o.id === det.o.id;
     if (!det || !jarvis.on) return;
     const o = det.o;
     const cy = objectCenterY(o);
@@ -171,7 +172,7 @@ function Slot({ i, mobile = false }: { i: number; mobile?: boolean }) {
     l.position.set(o.x, cy + fs / 2 + lh / 2 + 0.05 * lw, o.z);
     l.scale.set(lw, lh, 1);
     const key = `${o.id}|${det.m.estado}|${Math.round(det.d)}|${Math.round(det.m.similitud * 100)}|${det.ident?.nombre ?? det.idAnomalia?.nombre ?? ''}|${det.m.ref?.fuente ?? ''}`;
-    if (key !== lab.key) {
+    if (l.visible && key !== lab.key) {
       lab.key = key;
       drawLabel(lab.g, lab.c.width, lab.c.height, det);
       lab.t.needsUpdate = true;

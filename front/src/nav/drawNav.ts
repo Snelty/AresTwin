@@ -21,7 +21,7 @@ const CYAN = '#00f3ff';
 const GOLD = '#ffd84d';
 const fmt = (v: number, d = 1) => v.toFixed(d).replace('.', ',');
 export const NAV_W = 520;
-export const NAV_H = 1120;
+export const NAV_H = 920;
 const MAP = 520; // the map is the square on top
 /** Map range: metres from the astronaut to the rim (the laptop zooms it: 40 / 65 / 120 / 240). */
 export const mapa = { rango: 65 };
@@ -402,15 +402,9 @@ export function drawNav(g: CanvasRenderingContext2D, w = NAV_W, h = NAV_H, mobil
     if (nav.on) {
       line(`${Math.round(nav.dRuta)} m · ${mmss(nav.etaS)}`, '#ffffff', 56, true);
       line(`Llega ${hhmm(nav.llegaH)}`);
-      line(nav.giro === 0 ? `↑ Recto ${Math.round(nav.giroM)} m` : `${nav.giro < 0 ? '↰ Izq.' : '↱ Der.'} en ${Math.round(nav.giroM)} m`);
-      const margin = nav.o2Vuelta > 0.05 ? 100 * (nav.o2Llega / nav.o2Vuelta - 1) : Infinity;
-      const color = nav.o2Llega <= 0 ? LEVEL_COLOR.rojo : margin > 30 ? LEVEL_COLOR.ok : margin > 15 ? LEVEL_COLOR.ambar : LEVEL_COLOR.rojo;
-      line(`O₂ ${fmt(Math.max(0, nav.o2Llega))} L`, color, 52, true);
-      line(`Regreso ${fmt(nav.o2Vuelta)} L`);
     } else line('Elige un destino en la laptop');
     if (nav.spe) line('☢ Regresa al hábitat', LEVEL_COLOR.rojo, 48, true);
     else if (nav.polvo > 0.15) line('Polvo · poca visibilidad', LEVEL_COLOR.ambar);
-    else if (Math.abs(nav.pendPct) > 12) line(`${nav.pendPct > 0 ? 'Subida' : 'Bajada'} ${Math.round(Math.abs(nav.pendPct))} %`, LEVEL_COLOR.ambar);
     return;
   }
   if (!nav.on) {
@@ -421,17 +415,6 @@ export function drawNav(g: CanvasRenderingContext2D, w = NAV_W, h = NAV_H, mobil
     line(`► ${nav.label}`, GOLD, 38, true);
     line(`${Math.round(nav.dRuta)} m · ${mmss(nav.etaS)}`, '#ffffff', 42, true);
     line(`Llega ${hhmm(nav.llegaH)}`, '#ffffff');
-    const a = nav.atrasoS;
-    const sched = !Number.isFinite(a) ? 'horario: empieza al caminar' : Math.abs(a) < 20 ? '● en horario' : a > 0 ? `▼ ${mmss(a)} atrasado` : `▲ ${mmss(a)} adelantado`;
-    const turn = nav.giro === 0 ? `↑ recto ${Math.round(nav.giroM)} m` : `${nav.giro < 0 ? '↰ izq.' : '↱ der.'} en ${Math.round(nav.giroM)} m`;
-    line(sched, Number.isFinite(a) && a > 60 ? '#ffe0a0' : '#d8e6f2', 36);
-    line(turn, '#d8e6f2', 36);
-    // O₂ on arrival: the safety colour of the margin it leaves to walk home.
-    const m = nav.o2Vuelta > 0.05 ? 100 * (nav.o2Llega / nav.o2Vuelta - 1) : Infinity;
-    const col = nav.o2Llega <= 0 ? LEVEL_COLOR.rojo : m > 30 ? LEVEL_COLOR.ok : m > 15 ? LEVEL_COLOR.ambar : LEVEL_COLOR.rojo;
-    line(`O₂ llegada ${fmt(Math.max(0, nav.o2Llega))} L`, col, 36, true);
-    line(`O₂ regreso ${fmt(nav.o2Vuelta)} L`, col, 36, true);
-    if (Math.abs(nav.pendPct) > 12) line(`${nav.pendPct > 0 ? '⬈ subida' : '⬊ bajada'} ${Math.round(Math.abs(nav.pendPct))} % en ${Math.round(nav.pendM)} m`, '#d8e6f2', 28);
   }
   if (nav.spe) {
     const crit = nav.spe === 'critico';
