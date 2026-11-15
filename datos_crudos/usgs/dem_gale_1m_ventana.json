@@ -1,0 +1,14 @@
+{
+ "producto": "MSL_Gale_DEM_Mosaic_1m_v3.tif",
+ "url": "https://planetarymaps.usgs.gov/mosaic/Mars/MSL/MSL_Gale_DEM_Mosaic_1m_v3.tif",
+ "fila0": 40837,
+ "col0": 16778,
+ "margen_px": 20,
+ "lado_m": 500,
+ "x_sw_m": 8144792.054195119,
+ "y_sw_m": -286139.0,
+ "lon_sw": 137.4075683978424,
+ "lat_sw": -4.82733800349623,
+ "lon_ne": 137.41600370027146,
+ "lat_ne": -4.818902701067173
+}

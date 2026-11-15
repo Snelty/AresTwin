@@ -1,0 +1,172 @@
+PDS_VERSION_ID                    = PDS3
+LABEL_REVISION_NOTE               = "Eric Eliason, 2007-05-01"
+RECORD_TYPE                       = STREAM
+SPACECRAFT_NAME                   = "MARS RECONNAISSANCE ORBITER"
+TARGET_NAME                       = "MARS"
+
+OBJECT                            = DATA_SET_MAP_PROJECTION
+  DATA_SET_ID                     = "MRO-M-HIRISE-3-RDR-V1.1"
+
+  OBJECT                          = DATA_SET_MAP_PROJECTION_INFO
+    MAP_PROJECTION_TYPE           = "EQUIRECTANGULAR"
+    MAP_PROJECTION_DESC           = "
+
+    The EQUIRECTANGULAR projection is based on the formula for a
+    sphere.  To eliminate confusion in the IMAGE_MAP_PROJECTION
+    object we have set all three values, A_AXIS_RADIUS, B_AXIS_RADIUS,
+    and C_AXIS_RADIUS to the same number.  The value recorded in the
+    three radii is the local radius at the CENTER_LATITUDE on the
+    Mars ellipsoid.  The ellipsoid is defined as, equatorial radius
+    of 3396.190000 km and polar radius of 3376.200000 kilometers.
+    Using the local radius of the ellipsoid implies that the MAP_SCALE
+    and MAP_RESOLUTION are true at the CENTER_LATITUDE.
+
+    The Equirectangular projection, used in observations whose center
+    latitude of the observation is in the range -65 to 65 degrees
+    latitude, is a simple projection providing a linear relationship
+    between the geographic coordinates of latitude and longitude and
+    the Cartesian space of the map. In continuous form, the equations
+    relating map coordinates (x, y) to geographic coordinates (Lat,
+    Lon) are:
+
+       x = R * (Lon - LonP) * COS(LatP)
+       y = R * Lat
+
+    where LonP is the center longitude of the map projection,
+    LatP is the center latitude of the projection at which scale
+    is given, and R the radius of the body at the center latitude.
+    The Re and Rp parameters refer to equitorial and polar radius
+    respectively.
+
+       R = Re * Rp / SQRT(a^2 + b^2)
+       a = Rp * COS(LatP)
+       b = Re * SIN(LatP)
+
+    The inverse formulas for Lat and Lon from x and y position in the
+    projection are:
+
+       Lat = (y / R) * (180 / pi)
+       Lon = LonP + (x / (R * COS(LatP))) * (180 / pi)
+
+    The Conversion from (x, y) map coordinates to image array
+    coordinates (sample, line) is standard for all map projections and
+    is:
+
+       x = (Sample - S0) * Scale
+       y = (L0 - Line) * Scale
+
+    where Scale is the map resolution in km/pixel (located at the
+    center planetocentric latitude of the projection). Line and
+    Sample are the coordinates of the image array, and line (L0)
+    and sample offsets (S0) are the respective image coordinate
+    displacements from pixel (1,1) to the origin of the projection
+    (x,y) = (0,0).  Please note, pixel (1,1) is spatially located
+    in the upper-left corner of the image array.
+
+    The equations from (x, y) to (Sample, Line) are:
+
+       Sample =  x / Scale + S0 + 1
+       Line   = -y / Scale - L0 + 1
+
+    The equation from (Sample, Line) to (Lat, Lon) is:
+
+       Lat = (y / R) * (180 / Pi)
+       y   = (1 - L0 - Line) * Scale
+       Lat = ((1 - L0 - Line) * Scale / R) * (180 / pi)
+
+       Lon = LonP + ((x / (R * COS(LatP))) * (180 / pi))
+       x   = (Sample - S0 - 1) * Scale
+       Lon = LonP + (((Sample - S0 - 1) * Scale/ (R * COS(LatP))) * (180 / pi))
+
+    The keywords corresponding to the Equirectangular projection
+    parameters are located in the IMAGE_MAP_PROJECTION object found
+    in the PDS labels. The keywords for each equation parameter are
+    shown below:
+
+       LonP  | CENTER_LONGITUDE
+       LatP  | CENTER_LATITUDE
+       L0    | LINE_PROJECTION_OFFSET
+       S0    | SAMPLE_PROJECTION_OFFSET
+       Scale | MAP_SCALE
+       Re    | A_AXIS_RADIUS
+       Rp    | C_AXIS_RADIUS
+     "
+  END_OBJECT                      = DATA_SET_MAP_PROJECTION_INFO
+
+
+  OBJECT                          = DATA_SET_MAP_PROJECTION_INFO
+    MAP_PROJECTION_TYPE           = "POLAR STEREOGRAPHIC"
+    MAP_PROJECTION_DESC           = "
+
+    The Polar Stereographic projection, used in observations whose
+    center latitude of the observation is greater than 65 or less
+    than -65 degrees latitude, is ideally suited for observations
+    near the poles as shape and scale distortion are minimized. The
+    HiRISE RDR products with Polar Stereographic projection use the
+    ellipsoid form of the equations.  However, most cartographic
+    processing software cannot support planetocentric coordinates for
+    this projection with the ellipsoid equation.  The fallback is to
+    use the spherical equations.  The error between the spherical and
+    ellipsoidal equations is highest at 60 and -60 degrees latitude
+    and is approximately 26 meters or about 100 HiRISE pixels.  The
+    error is less than the accuracy of the camera pointing,
+    approximately 100m, and can be ignored.
+
+    In continuous form, the spherical equations relating map
+    coordinates (x, y) to planetocentric coordinates (Lat, Lon)
+    are:
+
+    North Polar Stereographic
+       x =  2 * Rp * TAN(Pi / 4 - Lat / 2) * SIN(Lon - LonP)
+       y = -2 * Rp * TAN(Pi / 4 - Lat / 2) * COS(Lon - LonP)
+
+    South Polar Stereographic
+       x =  2 * Rp * TAN(Pi / 4 + Lat / 2) * SIN(Lon - LonP)
+       y =  2 * Rp * TAN(Pi / 4 + Lat / 2) * COS(Lon - LonP)
+
+    Where LonP is the central longitude, LatP is the latitude of
+    true scale and is always 90 or -90, and Rp is the polar radius of
+    Mars or 3376.2 km.
+
+    The spherical inverse formulas for Lat and Lon from X and Y
+    position in the image array are:
+
+       Lat = ARCSIN[COS(C) * SIN(LatP) + y * SIN(C) * COS(LatP) / P]
+
+    North Polar Stereographic
+       Lon = LonP + ARCTAN[x / (-y)]
+
+    South Polar Stereographic
+       Lon = LonP + ARCTAN[x / y]
+
+    where:
+       P = SQRT(x^2 + y^2)
+       C = 2 * ARCTAN(P / 2 * Rp)
+
+   recall:
+
+       x = (Sample - S0 - 1) * Scale
+       y = (1 - L0 - Line) * Scale
+
+     The keywords corresponding to the equation parameters for the
+     Polar Stereographic projection are located in the
+     IMAGE_MAP_PROJECTION object found in the PDS labels. The
+     keywords for each equation parameter are shown below.
+
+       LonP  | CENTER_LONGITUDE
+       LatP  | CENTER_LATITUDE
+       L0    | LINE_PROJECTION_OFFSET
+       S0    | SAMPLE_PROJECTION_OFFSET
+       Scale | MAP_SCALE
+       Re    | A_AXIS_RADIUS
+       Rp    | C_AXIS_RADIUS
+     "
+   END_OBJECT                     = DATA_SET_MAP_PROJECTION_INFO
+
+   OBJECT                         = DS_MAP_PROJECTION_REF_INFO
+     REFERENCE_KEY_ID             = "SNYDER1987"
+   END_OBJECT                     = DS_MAP_PROJECTION_REF_INFO
+
+END_OBJECT                        = DATA_SET_MAP_PROJECTION
+
+END
