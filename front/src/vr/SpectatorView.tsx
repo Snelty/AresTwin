@@ -47,10 +47,12 @@ import { EventosTab, NavStats, Section, Toggle } from './SpectatorMenu';
 import { bd, guardarDestino, iniciarBd } from '../jarvis/bd';
 import { RANGOS, mapa } from '../nav/drawNav';
 import { nav } from '../nav/nav';
+import { routeGazeTarget } from './routeGaze';
 
 const keys = new Set<string>();
-/** Look-down-to-walk: tilting the head below `thr` degrees walks forward at `speed` m/s. Set from the laptop. */
-export const gaze = { on: true, speed: 3, thr: 25, walking: false, ramp: 0 };
+/** Hands-free walking: look at the ground or along the suggested route. */
+export const gaze = { on: true, speed: 3, thr: 25, walking: false, ramp: 0, followingRoute: false };
+const MANUAL_MOVEMENT_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'KeyQ', 'KeyE'];
 const remote = { q: new THREE.Quaternion(), has: false, vrConnected: false, fresh: false, last: 0, tiltOnly: false };
 const _yawQ = new THREE.Quaternion();
 const _up = new THREE.Vector3(0, 1, 0);
@@ -82,6 +84,7 @@ function HostLoop({ thirdPerson }: { thirdPerson: boolean }) {
   const target = useMemo(() => new THREE.Vector3(), []);
   const camPos = useMemo(() => new THREE.Vector3(), []);
   const follow = useRef({ ready: false });
+  const routeLook = useRef({ id: -1, seconds: 0 });
   // Body velocity (smoothed), sent with the pose so the phone can extrapolate across network jitter.
   const vel = useRef({ x: 0, z: 0, px: NaN, pz: NaN });
 
@@ -102,17 +105,28 @@ function HostLoop({ thirdPerson }: { thirdPerson: boolean }) {
     const lookPitch = Math.asin(Math.max(-1, Math.min(1, _fwd.y)));
     const lookYaw = Math.abs(_fwd.y) < 0.995 ? Math.atan2(_fwd.x, -_fwd.z) : suitState.lookYaw;
 
-    // Look down → walk forward (hands-free inside the Cardboard). Keys take priority.
+    // Hands-free walking. Looking along the ribbon follows its bends; keys win immediately.
     const pitchDeg = (lookPitch * 180) / Math.PI;
-    const want = gaze.on && !fwd && !strafe && -pitchDeg > gaze.thr ? Math.min(1, (-pitchDeg - gaze.thr) / 8) : 0;
-    gaze.ramp += (want - gaze.ramp) * (1 - Math.exp(-dt * 6)); // ease in/out, no jolts
-    gaze.walking = gaze.ramp > 0.05;
+    const manual = MANUAL_MOVEMENT_KEYS.some(key => keys.has(key));
+    const canAutoWalk = gaze.on && !manual && !missionActive() && !auto.on;
+    const routeTarget = canAutoWalk ? routeGazeTarget(rt.route, {
+      x: vr.x, z: vr.z, eyeY: heightAt(vr.x, vr.z) + EYE_HEIGHT, yaw: lookYaw, pitch: lookPitch,
+    }, heightAt) : null;
+    if (routeLook.current.id !== vr.routeId) { routeLook.current.id = vr.routeId; routeLook.current.seconds = 0; }
+    routeLook.current.seconds = routeTarget ? routeLook.current.seconds + dt : 0;
+    gaze.followingRoute = !!routeTarget && routeLook.current.seconds >= 0.3;
+    const groundIntent = canAutoWalk && -pitchDeg > gaze.thr ? Math.min(1, (-pitchDeg - gaze.thr) / 8) : 0;
+    const want = gaze.followingRoute ? 1 : groundIntent;
+    if (!want) gaze.ramp = 0;
+    else gaze.ramp += (want - gaze.ramp) * (1 - Math.exp(-dt * 6));
+    gaze.walking = canAutoWalk && want > 0 && gaze.ramp > 0.05;
     // Mission mode: the astronaut walks the telemetry track; keys and gaze only look around.
     if (missionActive()) {
       gaze.walking = false;
       stepMission(dt);
     } else if (auto.on) moveAstronaut(1, 0, auto.yaw, false, dt, auto.speed);
-    else if (gaze.walking) moveAstronaut(1, 0, viewYaw(), false, dt, gaze.speed * gaze.ramp);
+    else if (gaze.walking) moveAstronaut(1, 0, gaze.followingRoute ? routeTarget!.yaw : viewYaw(), false, dt,
+      Math.min(gaze.speed * gaze.ramp, gaze.followingRoute ? routeTarget!.distance / dt : Infinity));
     else moveAstronaut(fwd, strafe, viewYaw(), keys.has('ShiftLeft') || keys.has('ShiftRight'), dt);
 
     // The head turns first; past ~55° the astronaut turns to follow it.
@@ -515,7 +529,7 @@ export function SpectatorView() {
             {tab === 'control' && (
               <>
                 <Section title="Caminar sin manos (Cardboard)">
-                  <Toggle on={gazeUi.on} onClick={() => setGaze({ on: !gazeUi.on })} label="Mirar abajo para avanzar" hint={hud.walking ? '▼ avanzando' : 'quieto'} />
+                  <Toggle on={gazeUi.on} onClick={() => setGaze({ on: !gazeUi.on })} label="Avanzar mirando el suelo o la ruta" hint={hud.walking ? gaze.followingRoute ? '► siguiendo ruta' : '▼ avanzando' : 'quieto'} />
                   <label className="flex items-center gap-2">
                     <span className="w-28 text-slate-400">Velocidad</span>
                     <input type="range" min={0.5} max={10} step={0.5} value={gazeUi.speed} onChange={(e) => setGaze({ speed: +e.target.value })} className="flex-1 accent-cyan-400" />

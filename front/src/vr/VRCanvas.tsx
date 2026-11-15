@@ -386,7 +386,7 @@ export function VRCanvas() {
           <div className="font-display text-2xl tracking-[0.25em] text-cyan-200">ARES-TWIN · CASCO</div>
           <p className="text-sm text-slate-300 max-w-md">
             Poné el celular en horizontal dentro del Cardboard. Al girar la cabeza gira la vista, como una brújula: mirar al norte real es mirar al norte en Marte.
-            El avance lo maneja la laptop con el teclado.
+            Avanza mirando el suelo o hacia la ruta indicada. También puedes usar el teclado de la laptop.
           </p>
           {!secure && (
             <p className="text-sm text-amber-200 max-w-md">

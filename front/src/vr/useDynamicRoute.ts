@@ -10,34 +10,14 @@ import { useEffect, useRef } from 'react';
 import { rt } from '../store/simEngine';
 import { useSimStore } from '../store/useSimStore';
 import { DEVIATION_M, GOAL_RADIUS, currentGoal, recalculateRoute, vr } from './vrEngine';
+import { projectOnPolyline } from './routeGaze';
 
 const CHECK_MS = 100;
 const MIN_GAP_MS = 400; // never re-plan more often than this
 
 /** Distance from p to the route polyline and the arc length of the closest point. */
 export function projectOnRoute(px: number, pz: number): { dist: number; s: number } {
-  const r = rt.route;
-  if (r.n < 2) return { dist: Infinity, s: 0 };
-  let best = Infinity;
-  let bestS = 0;
-  for (let i = 0; i < r.n - 1; i++) {
-    const ax = r.xs[i];
-    const az = r.zs[i];
-    const bx = r.xs[i + 1];
-    const bz = r.zs[i + 1];
-    const vx = bx - ax;
-    const vz = bz - az;
-    const L2 = vx * vx + vz * vz || 1e-9;
-    const t = Math.max(0, Math.min(1, ((px - ax) * vx + (pz - az) * vz) / L2));
-    const qx = ax + vx * t;
-    const qz = az + vz * t;
-    const d = Math.hypot(px - qx, pz - qz);
-    if (d < best) {
-      best = d;
-      bestS = r.cum[i] + Math.sqrt(L2) * t;
-    }
-  }
-  return { dist: best, s: bestS };
+  return projectOnPolyline(rt.route, px, pz);
 }
 
 export function useDynamicRoute(enabled: boolean) {
