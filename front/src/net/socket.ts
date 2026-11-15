@@ -6,6 +6,7 @@ import type { BioNet } from '../hud/bio';
 import type { NavNet } from '../nav/nav';
 import type { Hazard } from '../lib/costmap';
 import type { MissionViewNet } from '../mission/mission';
+import type { TemperatureSnapshot } from '../sim/temperature';
 
 export type Role = 'vr-client' | 'spectator-host';
 
@@ -28,6 +29,7 @@ export interface SyncState {
   /** Local true solar time (hours) and dust-storm strength 0..1, chosen on the laptop. */
   ltst?: number | null;
   storm?: number;
+  temperature?: TemperatureSnapshot;
   gaze?: { on: boolean; speed: number; thr: number; walking: boolean } | null;
   drone: DroneNet | null;
   /** Suit biodata simulated on the laptop (hud/bio.ts). */

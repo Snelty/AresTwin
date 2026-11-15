@@ -34,6 +34,7 @@ export function attachSync(httpServer, { log = console.log } = {}) {
     gaze: null, // look-down-to-walk settings, owned by the laptop
     ltst: null, // local solar time and dust chosen on the laptop
     storm: 0,
+    temperature: { cold: false, thermal: false, baselineC: -20, temperatureC: -20 },
     drone: null,
     bio: null, // suit biodata simulated on the laptop (front/src/hud/bio.ts)
     nav: null, // visor navigation: next goal, ETA, schedule, next turn (front/src/nav/nav.ts)
@@ -82,6 +83,11 @@ export function attachSync(httpServer, { log = console.log } = {}) {
       if (p.drone) state.drone = p.drone;
       if (p.bio && typeof p.bio === 'object') state.bio = p.bio;
       if (p.nav && typeof p.nav === 'object') state.nav = p.nav;
+      const temp = p.temperature;
+      if (typeof temp?.cold === 'boolean' && typeof temp?.thermal === 'boolean'
+        && Number.isFinite(temp.baselineC) && Number.isFinite(temp.temperatureC)) {
+        state.temperature = { cold: temp.cold, thermal: temp.thermal, baselineC: temp.baselineC, temperatureC: temp.temperatureC };
+      }
       // Relay the body pose the instant it arrives (like the rotation): the phone
       // no longer waits up to one 60 Hz tick. Volatile: a late pose is dropped, never queued.
       socket.broadcast.volatile.emit('pose', {
@@ -109,13 +115,13 @@ export function attachSync(httpServer, { log = console.log } = {}) {
     // Headset keyboard commands execute on the laptop, which owns scenario state.
     socket.on('vr-command', (command, ack) => {
       const reply = (result) => { if (typeof ack === 'function') ack(result); };
-      if (roles.get(socket.id) !== 'vr-client' || command?.type !== 'solar-storm') {
+      if (roles.get(socket.id) !== 'vr-client' || !['solar-storm', 'cold', 'thermal-view'].includes(command?.type)) {
         reply({ ok: false, reason: 'invalid-command' }); return;
       }
       const hostId = [...roles].find(([, role]) => role === 'spectator-host')?.[0];
       const host = hostId && io.sockets.sockets.get(hostId);
       if (!host) { reply({ ok: false, reason: 'no-host' }); return; }
-      host.timeout(2000).emit('vr-command', { type: 'solar-storm' }, (error, result) => {
+      host.timeout(2000).emit('vr-command', { type: command.type }, (error, result) => {
         reply(error || typeof result?.ok !== 'boolean' ? { ok: false, reason: 'timeout' } : result);
       });
     });

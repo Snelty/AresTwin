@@ -8,7 +8,8 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { CLASE_NOMBRE, field, objectCenterY } from './catalog';
+import { CLASE_NOMBRE, objectCenterY } from './catalog';
+import { wrapCanvasText } from '../lib/canvasText';
 import { jarvis, stepDetector, type Detection } from './detector';
 import { suitState } from '../vr/suit/state';
 import { currentGoal, vr } from '../vr/vrEngine';
@@ -87,7 +88,7 @@ function drawLabel(g: CanvasRenderingContext2D, w: number, h: number, det: Detec
   const s = styleOf(det);
   const col = COLORS[s];
   g.clearRect(0, 0, w, h);
-  g.fillStyle = 'rgba(4, 10, 20, 0.72)';
+  g.fillStyle = 'rgba(4, 10, 20, 0.50)';
   g.strokeStyle = col;
   g.lineWidth = 4;
   g.beginPath();
@@ -99,29 +100,31 @@ function drawLabel(g: CanvasRenderingContext2D, w: number, h: number, det: Detec
   const nombre = det.ident ? `${det.ident.nombre}${!det.ident.generico && det.ident.conf < 0.6 ? '?' : ''}` : det.idAnomalia ? det.idAnomalia.nombre : CLASE_NOMBRE[o.clase];
   const titulo = o.clase === 'sitio' ? `${o.id} · ${o.nota ?? 'sitio'}` : o.clase === 'peligro' ? `PELIGRO ${o.id}` : `${nombre}${tam}`;
   g.fillStyle = col;
-  let size = 50;
-  g.font = `bold ${size}px ${FONT}`;
-  while (size > 30 && g.measureText(titulo).width > w - 40) g.font = `bold ${(size -= 2)}px ${FONT}`;
-  g.fillText(titulo, 22, 62);
+  g.shadowColor = '#000'; g.shadowBlur = 3;
+  g.font = `bold 52px ${FONT}`;
+  const rows = wrapCanvasText(g, titulo, w - 44);
+  if (rows.length > 2) {
+    let last = rows[1];
+    while (last && g.measureText(last + '…').width > w - 44) last = last.slice(0, -1);
+    rows[1] = last + '…';
+  }
+  rows.slice(0, 2).forEach((row, i) => g.fillText(row, 22, 56 + i * 54));
   g.fillStyle = '#ffffff';
-  g.font = `40px ${FONT}`;
+  g.font = `bold 42px ${FONT}`;
   const m = det.m;
   const linea2 =
     o.clase === 'peligro'
-      ? 'reportado por la telemetría'
+      ? 'PELIGRO'
       : m.estado === 'catalogado'
-        ? `EN BD${m.ref?.fuente === 'eva' ? ' (EVA)' : ''} ${m.ref?.id ?? ''} · ${Math.round(m.similitud * 100)} %`
+        ? 'Catalogado'
         : m.estado === 'similar'
-          ? `PARECIDO a ${m.ref?.id ?? '?'} · ${Math.round(m.similitud * 100)} %`
-          : 'NUEVO · no está en la BD';
-  g.fillText(`${linea2}   ${Math.round(det.d)} m`, 22, 118);
+          ? 'Similar'
+          : 'Nuevo';
+  g.fillText(`${Math.round(det.d)} m · ${linea2}`, 22, 166);
   if (m.interes >= 0.5) {
     g.fillStyle = STAR;
-    g.font = `bold 36px ${FONT}`;
-    g.fillText(`★ VALE LA PENA DOCUMENTAR`, 22, 168);
-    g.fillStyle = '#d8e6f2';
-    g.font = `28px ${FONT}`;
-    g.fillText(m.motivo, 22, 204);
+    g.font = `bold 30px ${FONT}`;
+    g.fillText('★ Documentar', 22, 208);
   }
 }
 
@@ -163,7 +166,7 @@ function Slot({ i, mobile = false }: { i: number; mobile?: boolean }) {
     f.position.set(o.x, cy, o.z);
     f.scale.set(fs, fs, 1);
     // Label of constant angular size (~11° wide) above the frame.
-    const lw = Math.max(1.3, d * (mobile ? 0.28 : 0.2));
+    const lw = Math.max(1.3, d * (mobile ? 0.32 : 0.26));
     const lh = (lw * lab.c.height) / lab.c.width;
     l.position.set(o.x, cy + fs / 2 + lh / 2 + 0.05 * lw, o.z);
     l.scale.set(lw, lh, 1);
@@ -202,9 +205,6 @@ function drawTape(g: CanvasRenderingContext2D, w: number, h: number, mobile = fa
     g.fillStyle = '#ffffff'; g.textAlign = 'center';
     g.font = `bold 80px ${FONT}`;
     g.fillText(`${Math.round(head)}°`, w / 2, 100);
-    g.font = `bold 52px ${FONT}`;
-    g.fillStyle = '#a3fff2';
-    g.fillText(`${jarvis.vistos} visibles · ★ ${jarvis.hallazgos.length}`, w / 2, 190);
     g.restore();
     g.textAlign = 'left';
     return;
@@ -257,11 +257,6 @@ function drawTape(g: CanvasRenderingContext2D, w: number, h: number, mobile = fa
   g.lineTo(w / 2 + 12, 112);
   g.closePath();
   g.fill();
-  // Summary
-  const nuevos = jarvis.detections.filter((d) => d.m.estado === 'nuevo' && d.o.clase !== 'peligro').length;
-  g.font = `28px ${FONT}`;
-  g.fillStyle = '#d8e6f2';
-  g.fillText(`JARVIS · BD orbital ${field.nDb} objetos · a la vista ${jarvis.vistos} · nuevos ${nuevos} · ★ hallazgos ${jarvis.hallazgos.length}`, w / 2, h - 12);
   g.textAlign = 'left';
 }
 

@@ -11,6 +11,7 @@ import { rt } from '../../store/simEngine';
 import { Q } from '../../render/quality';
 import { SKY_GLSL, skyLight, type SkyLight } from '../../render/marsSky';
 import { marsFog, patchMarsFog } from '../../render/marsFog';
+import { updateThermalUniforms } from '../../render/thermal';
 
 patchMarsFog();
 
@@ -127,6 +128,7 @@ export function Atmosphere() {
   const focus = shadowFocus;
 
   useFrame((state, dt) => {
+    updateThermalUniforms();
     readSun(sunVec);
     const tau = CLEAR_TAU + rt.stormIntensity * 3.4;
     const now = state.clock.elapsedTime;
