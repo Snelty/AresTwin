@@ -84,7 +84,7 @@ function frameTexture(s: Style) {
   return t;
 }
 
-function drawLabel(g: CanvasRenderingContext2D, w: number, h: number, det: Detection) {
+function drawLabel(g: CanvasRenderingContext2D, w: number, h: number, det: Detection, desktop = false) {
   const s = styleOf(det);
   const col = COLORS[s];
   g.clearRect(0, 0, w, h);
@@ -101,16 +101,16 @@ function drawLabel(g: CanvasRenderingContext2D, w: number, h: number, det: Detec
   const titulo = o.clase === 'sitio' ? `${o.id} · ${o.nota ?? 'sitio'}` : o.clase === 'peligro' ? `PELIGRO ${o.id}` : `${nombre}${tam}`;
   g.fillStyle = col;
   g.shadowColor = '#000'; g.shadowBlur = 3;
-  g.font = `bold 52px ${FONT}`;
+  g.font = `bold ${desktop ? 60 : 52}px ${FONT}`;
   const rows = wrapCanvasText(g, titulo, w - 44);
   if (rows.length > 2) {
     let last = rows[1];
     while (last && g.measureText(last + '…').width > w - 44) last = last.slice(0, -1);
     rows[1] = last + '…';
   }
-  rows.slice(0, 2).forEach((row, i) => g.fillText(row, 22, 56 + i * 54));
+  rows.slice(0, 2).forEach((row, i) => g.fillText(row, 22, (desktop ? 66 : 56) + i * (desktop ? 66 : 54)));
   g.fillStyle = '#ffffff';
-  g.font = `bold 42px ${FONT}`;
+  g.font = `bold ${desktop ? 48 : 42}px ${FONT}`;
   const m = det.m;
   const linea2 =
     o.clase === 'peligro'
@@ -120,25 +120,26 @@ function drawLabel(g: CanvasRenderingContext2D, w: number, h: number, det: Detec
         : m.estado === 'similar'
           ? 'Similar'
           : 'Nuevo';
-  g.fillText(`${Math.round(det.d)} m · ${linea2}`, 22, 166);
+  g.fillText(`${Math.round(det.d)} m · ${linea2}`, 22, desktop ? 200 : 166);
   if (m.interes >= 0.5) {
     g.fillStyle = STAR;
-    g.font = `bold 30px ${FONT}`;
-    g.fillText('★ Documentar', 22, 208);
+    g.font = `bold ${desktop ? 38 : 30}px ${FONT}`;
+    g.fillText('★ Documentar', 22, desktop ? 252 : 208);
   }
 }
 
-function Slot({ i, mobile = false }: { i: number; mobile?: boolean }) {
+function Slot({ i, mobile = false, desktop = false }: { i: number; mobile?: boolean; desktop?: boolean }) {
   const frame = useRef<THREE.Sprite>(null);
   const label = useRef<THREE.Sprite>(null);
+  const focusAnimation = useRef({ id: '', amount: 0 });
   const lab = useMemo(() => {
     const c = document.createElement('canvas');
     c.width = 720;
-    c.height = 224;
+    c.height = desktop ? 272 : 224;
     const t = new THREE.CanvasTexture(c);
     t.colorSpace = THREE.SRGBColorSpace;
     return { c, g: c.getContext('2d')!, t, key: '' };
-  }, []);
+  }, [desktop]);
   const frameMat = useMemo(() => new THREE.SpriteMaterial({ transparent: true, depthTest: false, depthWrite: false, toneMapped: false }), []);
   const labelMat = useMemo(() => new THREE.SpriteMaterial({ map: lab.t, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }), [lab]);
   useEffect(
@@ -150,35 +151,44 @@ function Slot({ i, mobile = false }: { i: number; mobile?: boolean }) {
     [lab, frameMat, labelMat],
   );
 
-  useFrame((state) => {
+  useFrame((state, dt) => {
     const det = jarvis.detections[i];
     const f = frame.current;
     const l = label.current;
     if (!f || !l) return;
     f.visible = !!det && jarvis.on;
-    l.visible = !!det && jarvis.on && jarvis.foco?.o.id === det.o.id;
-    if (!det || !jarvis.on) return;
+    const focused = !!det && jarvis.foco?.o.id === det.o.id;
+    l.visible = !!det && jarvis.on && focused;
+    if (!det || !jarvis.on) { focusAnimation.current = { id: '', amount: 0 }; return; }
     const o = det.o;
     const cy = objectCenterY(o);
     const d = state.camera.position.distanceTo(new THREE.Vector3(o.x, cy, o.z));
-    // Frame around the object, never smaller than ~2.6° so far objects stay visible.
-    const fs = Math.max(o.r * 2.2, d * 0.045);
+    const animation = focusAnimation.current;
+    if (animation.id !== o.id) { animation.id = o.id; animation.amount = 0; }
+    animation.amount += ((focused ? 1 : 0) - animation.amount) * (1 - Math.exp(-Math.min(dt, 0.05) * 12));
+    // Quiet, small markers at rest; expand only the object under the reticle.
+    // Cap the focused marker's angular size so nearby objects cannot fill the view.
+    const small = Math.max(0.08, d * 0.032);
+    const large = Math.min(Math.max(o.r * 2.2, d * 0.065), d * 0.22);
+    const fs = small + (large - small) * animation.amount;
     frameMat.map = frameTexture(styleOf(det));
     f.position.set(o.x, cy, o.z);
     f.scale.set(fs, fs, 1);
-    // Label of constant angular size (~11° wide) above the frame.
-    const lw = Math.max(1.3, d * (mobile ? 0.32 : 0.26));
+    // PC descriptions get more screen space; headset labels keep their own scale.
+    const lw = Math.max(desktop ? 1.8 : 1.3, d * (desktop ? 0.42 : mobile ? 0.32 : 0.26));
     const lh = (lw * lab.c.height) / lab.c.width;
     l.position.set(o.x, cy + fs / 2 + lh / 2 + 0.05 * lw, o.z);
-    l.scale.set(lw, lh, 1);
+    const labelScale = 0.8 + 0.2 * animation.amount;
+    l.scale.set(lw * labelScale, lh * labelScale, 1);
+    labelMat.opacity = animation.amount;
     const key = `${o.id}|${det.m.estado}|${Math.round(det.d)}|${Math.round(det.m.similitud * 100)}|${det.ident?.nombre ?? det.idAnomalia?.nombre ?? ''}|${det.m.ref?.fuente ?? ''}`;
     if (l.visible && key !== lab.key) {
       lab.key = key;
-      drawLabel(lab.g, lab.c.width, lab.c.height, det);
+      drawLabel(lab.g, lab.c.width, lab.c.height, det, desktop);
       lab.t.needsUpdate = true;
     }
     const pulse = det.m.interes >= 0.5 ? 0.75 + 0.25 * Math.sin(state.clock.elapsedTime * 6) : 1;
-    frameMat.opacity = pulse;
+    frameMat.opacity = (0.55 + animation.amount * 0.45) * pulse;
   });
 
   return (
@@ -312,7 +322,7 @@ export function JarvisOverlay({ anchor = 'visor', stereo = false, mobile = false
       {anchor === 'visor' && panels && <FichaPanel stereo={stereo} mobile={mobile} />}
       {anchor === 'visor' && <Reticle />}
       {Array.from({ length: !panels ? 2 : mobile ? 4 : SLOTS }).map((_, i) => (
-        <Slot key={i} i={i} mobile={mobile} />
+        <Slot key={i} i={i} mobile={mobile} desktop={panels && !mobile} />
       ))}
     </>
   );
