@@ -8,6 +8,7 @@ import { CLASE_NOMBRE } from '../jarvis/catalog';
 import { drawNav } from '../nav/drawNav';
 import { SITES } from '../lib/sites';
 import { vrHudLayout } from './vrHudLayout';
+import { coolingAmount, temperature, THERMAL_COLORS, THERMAL_MIN_C, THERMAL_MAX_C } from '../sim/temperature';
 
 const D = 0.6;
 const FONT = 'ui-monospace, Consolas, monospace';
@@ -60,18 +61,45 @@ function analysis(p: ReturnType<typeof panel>) {
       : det.m.interes >= 0.5 ? '★ Documentar' : det.m.estado === 'nuevo' ? 'Objeto nuevo' : 'Objeto catalogado', 16, 132);
 }
 
-export function VrHud({ stereo }: { stereo: boolean }) {
+function climateReadout(p: ReturnType<typeof panel>, latencyMs: number) {
+  const g = p.context;
+  background(g, 512, 160, CYAN);
+  g.fillStyle = '#ffffff'; g.font = `bold 48px ${FONT}`;
+  g.fillText(`${Math.round(temperature.temperatureC)} °C`, 16, 50);
+  g.textAlign = 'right'; g.fillStyle = CYAN; g.font = `bold 25px ${FONT}`;
+  g.fillText(temperature.thermal ? 'TÉRMICO · SIM.' : 'FRÍO · SIM.', 496, 46);
+  if (temperature.thermal) {
+    const gradient = g.createLinearGradient(16, 0, 496, 0);
+    THERMAL_COLORS.forEach((color, i) => gradient.addColorStop(i / (THERMAL_COLORS.length - 1), color));
+    g.fillStyle = gradient; g.fillRect(16, 66, 480, 12);
+    g.fillStyle = '#ffffff'; g.font = `bold 24px ${FONT}`;
+    g.textAlign = 'left'; g.fillText(`${THERMAL_MIN_C} °C`, 16, 108);
+    g.textAlign = 'right'; g.fillText(`+${THERMAL_MAX_C} °C`, 496, 108);
+  } else {
+    g.textAlign = 'center'; g.font = `bold 28px ${FONT}`;
+    g.fillText(temperature.cold ? 'Enfriando el escenario' : 'Recuperando temperatura', 256, 100);
+  }
+  g.fillStyle = '#d8e6f2'; g.font = `bold 28px ${FONT}`; g.textAlign = 'center';
+  g.fillText(Number.isFinite(latencyMs) ? `${Math.round(latencyMs)} ms` : '— ms', 256, 148);
+}
+
+export function VrHud({ stereo, latencyMs = NaN }: { stereo: boolean; latencyMs?: number }) {
   const camera = useThree(s => s.camera) as THREE.PerspectiveCamera;
   const group = useRef<THREE.Group>(null);
   const oxygen = useRef<THREE.Mesh>(null), pulse = useRef<THREE.Mesh>(null);
   const info = useRef<THREE.Mesh>(null), map = useRef<THREE.Mesh>(null);
-  const assets = useMemo(() => ({ oxygen: panel(360, 132), pulse: panel(360, 132), analysis: panel(520, 160), map: panel(520, 520) }), []);
+  const latency = useRef<THREE.Mesh>(null);
+  const climate = useRef<THREE.Mesh>(null);
+  const assets = useMemo(() => ({ oxygen: panel(360, 132), pulse: panel(360, 132), analysis: panel(520, 160), map: panel(520, 520), latency: panel(256, 64), climate: panel(512, 160) }), []);
   const last = useRef({ vitals: -1, map: -1 });
   useEffect(() => () => Object.values(assets).forEach(p => { p.texture.dispose(); p.material.dispose(); }), [assets]);
   useFrame(state => {
-    if (!group.current || !oxygen.current || !pulse.current || !info.current || !map.current) return;
-    group.current.visible = jarvis.on;
-    if (!jarvis.on) return;
+    if (!group.current || !oxygen.current || !pulse.current || !info.current || !map.current || !latency.current || !climate.current) return;
+    group.current.visible = true;
+    oxygen.current.visible = pulse.current.visible = map.current.visible = jarvis.on;
+    const showClimate = temperature.cold || temperature.thermal || coolingAmount() > 0.02;
+    climate.current.visible = showClimate;
+    latency.current.visible = !showClimate;
     const t = state.clock.elapsedTime;
     if (t - last.current.vitals >= 0.125) {
       last.current.vitals = t;
@@ -79,8 +107,15 @@ export function VrHud({ stereo }: { stereo: boolean }) {
       vitals(assets.pulse, 'PULSO', `${Math.round(bio.FC)} lpm`, `VO₂ ${fmt(bio.VO2)} L/min`, bio.FC > 170 ? LEVEL_COLOR.rojo : bio.FC > 150 ? LEVEL_COLOR.ambar : CYAN);
       analysis(assets.analysis);
       assets.oxygen.texture.needsUpdate = assets.pulse.texture.needsUpdate = assets.analysis.texture.needsUpdate = true;
+      const g = assets.latency.context;
+      g.clearRect(0, 0, 256, 64);
+      g.font = `bold 36px ${FONT}`; g.textAlign = 'center'; g.fillStyle = '#d8e6f2';
+      g.shadowColor = '#000'; g.shadowBlur = 3;
+      g.fillText(Number.isFinite(latencyMs) ? `${Math.round(latencyMs)} ms` : '— ms', 128, 44);
+      assets.latency.texture.needsUpdate = true;
+      if (showClimate) { climateReadout(assets.climate, latencyMs); assets.climate.texture.needsUpdate = true; }
     }
-    if (t - last.current.map >= 0.2) {
+    if (jarvis.on && t - last.current.map >= 0.2) {
       last.current.map = t;
       drawNav(assets.map.context, 520, 520, false, true);
       assets.map.texture.needsUpdate = true;
@@ -89,15 +124,17 @@ export function VrHud({ stereo }: { stereo: boolean }) {
     const halfW = halfH * camera.aspect / (stereo ? 2 : 1);
     const layout = vrHudLayout(halfW, halfH);
     group.current.position.copy(camera.position); group.current.quaternion.copy(camera.quaternion);
-    for (const [mesh, rect] of [[oxygen.current, layout.oxygen], [pulse.current, layout.pulse], [info.current, layout.analysis], [map.current, layout.map]] as const) {
+    for (const [mesh, rect] of [[oxygen.current, layout.oxygen], [pulse.current, layout.pulse], [info.current, layout.analysis], [map.current, layout.map], [latency.current, layout.latency], [climate.current, layout.climate]] as const) {
       mesh.position.set(rect.x, rect.y, -D); mesh.scale.set(rect.w, rect.h, 1);
     }
-    info.current.visible = !!jarvis.foco;
+    info.current.visible = jarvis.on && !!jarvis.foco;
   }, 0.5);
   return <group ref={group}>
     <mesh ref={oxygen} material={assets.oxygen.material} renderOrder={1000} frustumCulled={false}><planeGeometry args={[1, 1]} /></mesh>
     <mesh ref={info} material={assets.analysis.material} renderOrder={1000} frustumCulled={false}><planeGeometry args={[1, 1]} /></mesh>
     <mesh ref={pulse} material={assets.pulse.material} renderOrder={1000} frustumCulled={false}><planeGeometry args={[1, 1]} /></mesh>
     <mesh ref={map} material={assets.map.material} renderOrder={1000} frustumCulled={false}><planeGeometry args={[1, 1]} /></mesh>
+    <mesh ref={latency} material={assets.latency.material} renderOrder={1000} frustumCulled={false}><planeGeometry args={[1, 1]} /></mesh>
+    <mesh ref={climate} material={assets.climate.material} renderOrder={1000} frustumCulled={false}><planeGeometry args={[1, 1]} /></mesh>
   </group>;
 }

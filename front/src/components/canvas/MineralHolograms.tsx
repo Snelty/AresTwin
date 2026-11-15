@@ -20,8 +20,11 @@ import { MINERALES } from '../../lib/realTerrain';
 import { heightAt } from '../../lib/terrain';
 import { UNLIT } from '../../render/unlit';
 import { currentGoal } from '../../vr/vrEngine';
-import { formatHours } from '../../lib/marsTime';
+import { jarvis } from '../../jarvis/detector';
 import { missionView } from '../../mission/mission';
+
+// Match the number of object labels actually drawn by each independent view.
+const objectLabelLimit = typeof location !== 'undefined' && new URLSearchParams(location.search).get('role') === 'vr' ? 2 : 8;
 
 const HOVER = 2.7; // metres above the ground (above a suited astronaut's helmet)
 
@@ -102,13 +105,13 @@ const STATUS_TXT: Record<Status, string> = {
 
 /** Two-line label rendered into a texture (works in both stereo eyes). */
 function labelTexture(site: ScienceSite, color: string, status: Status, order: number | null): THREE.CanvasTexture {
-  const W = 512;
-  const H = 168;
+  const W = 640;
+  const H = 192;
   const c = document.createElement('canvas');
   c.width = W;
   c.height = H;
   const g = c.getContext('2d')!;
-  g.fillStyle = 'rgba(8, 14, 24, 0.78)';
+  g.fillStyle = 'rgba(8, 14, 24, 0.50)';
   g.strokeStyle = color;
   g.lineWidth = 4;
   g.beginPath();
@@ -117,19 +120,20 @@ function labelTexture(site: ScienceSite, color: string, status: Status, order: n
   g.stroke();
   const m = site.mineralKey ? MINERALES[site.mineralKey] : null;
   g.fillStyle = color;
-  g.font = 'bold 44px ui-monospace, Consolas, monospace';
-  g.fillText(`${site.code}  ${(m?.nombre ?? site.mineral).toUpperCase()}`, 24, 58);
+  g.shadowColor = '#000'; g.shadowBlur = 3;
+  g.font = 'bold 46px ui-monospace, Consolas, monospace';
+  g.fillText(`${site.code} · ${m?.nombre ?? site.mineral}`, 24, 58);
   g.fillStyle = '#e6edf5';
-  g.font = '30px ui-monospace, Consolas, monospace';
+  g.font = 'bold 36px ui-monospace, Consolas, monospace';
   // Spanish decimal comma (the DOM localiser does not reach canvas text).
   const kg = site.massKg.toFixed(1).replace('.', ',');
-  g.fillText(`valor ${site.value}/10 · ${kg} kg · ${formatHours(site.window[0])}–${formatHours(site.window[1])}`, 24, 102);
+  g.fillText(`Ciencia ${site.value}/10 · ${kg} kg`, 24, 116);
   g.fillStyle = status === 'next' ? '#ffffff' : status === 'out' ? '#8b95a3' : '#c9d6e3';
-  g.font = `${status === 'next' ? 'bold ' : ''}28px ui-monospace, Consolas, monospace`;
-  const src = site.source === 'backend' ? 'backend' : 'terreno/';
-  g.fillText(`${STATUS_TXT[status]}${order ? ` · parada ${order}` : ''} · ${src}`, 24, 142);
+  g.font = 'bold 32px ui-monospace, Consolas, monospace';
+  g.fillText(`${STATUS_TXT[status]}${order ? ` · parada ${order}` : ''}`, 24, 164);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  t.minFilter = THREE.LinearFilter;
   t.anisotropy = 4;
   return t;
 }
@@ -198,10 +202,12 @@ function Hologram({ site, status, order, version }: { site: ScienceSite; status:
     }
     // Keep the label readable at any distance: constant angular size past ~25 m.
     const d = state.camera.position.distanceTo(_p.set(site.x, ground + HOVER, site.z));
-    const k = Math.min(7, Math.max(1, d / 25));
+    const k = Math.max(1, d / 25);
     if (sprite.current) {
-      sprite.current.scale.set(2.6 * k, 0.853 * k, 1);
-      sprite.current.position.y = HOVER + 1.25 + 0.4 * k;
+      sprite.current.scale.set(3.8 * k, 1.14 * k, 1);
+      sprite.current.position.y = HOVER + 1.25 + 0.7 * k;
+      // JARVIS already labels detected sites: avoid two cards over the same spot.
+      sprite.current.visible = !jarvis.on || !jarvis.detections.slice(0, objectLabelLimit).some(det => det.o.id === site.code);
     }
     if (tall.current) tall.current.visible = d > 18; // no pillar in your face when you are on the spot
   });

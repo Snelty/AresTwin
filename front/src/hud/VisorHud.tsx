@@ -25,6 +25,7 @@ import { heightAt } from '../lib/terrain';
 import { missionAviso, missionView } from '../mission/mission';
 import { jarvis } from '../jarvis/detector';
 import { nav } from '../nav/nav';
+import { coolingAmount, temperature } from '../sim/temperature';
 
 const CYAN = '#00f3ff';
 const D = 0.6; // metres from the eyes to the hologram plane
@@ -250,7 +251,7 @@ function drawAlert(g: CanvasRenderingContext2D, w: number, h: number): boolean {
 // Visor lens layer
 // ---------------------------------------------------------------------------
 const fxFrag = /* glsl */ `
-uniform float uFrost; uniform float uRed; uniform float uBeat; uniform float uHyp; uniform float uTime; uniform float uAspect;
+uniform float uFrost; uniform float uRed; uniform float uBeat; uniform float uHyp; uniform float uTime; uniform float uAspect; uniform float uCold;
 varying vec2 vUv;
 float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float noise(vec2 p) {
@@ -278,6 +279,9 @@ void main() {
   float veil = uHyp * (0.18 + 0.1 * fbm(pa * 3.0 + uTime * 0.15));
   vec3 col = vec3(0.0);
   float a = 0.0;
+  float aCold = uCold * (0.18 + 0.10 * smoothstep(0.2, 1.2, r));
+  col = mix(col, vec3(0.12, 0.48, 0.95), step(0.001, aCold));
+  a = aCold;
   // back to front: veil, tunnel, red, frost
   col = mix(col, vec3(0.75, 0.72, 0.7), veil); a = a + veil * (1.0 - a);
   col = mix(col, vec3(0.0), tunnel); a = a + tunnel * (1.0 - a);
@@ -331,7 +335,7 @@ export function VisorHud({ anchor = 'visor', stereo = false, fxStrength = 1, mob
       new THREE.ShaderMaterial({
         vertexShader: holoVert,
         fragmentShader: fxFrag,
-        uniforms: { uFrost: { value: 0 }, uRed: { value: 0 }, uBeat: { value: 0 }, uHyp: { value: 0 }, uTime: { value: 0 }, uAspect: { value: 1 } },
+        uniforms: { uFrost: { value: 0 }, uRed: { value: 0 }, uBeat: { value: 0 }, uHyp: { value: 0 }, uTime: { value: 0 }, uAspect: { value: 1 }, uCold: { value: 0 } },
         transparent: true,
         depthTest: false,
         depthWrite: false,
@@ -443,7 +447,8 @@ export function VisorHud({ anchor = 'visor', stereo = false, fxStrength = 1, mob
       u.uHyp.value = crisis.hyp * fxStrength;
       u.uTime.value = t;
       u.uAspect.value = camera.aspect / (stereo ? 2 : 1);
-      lens.current.visible = crisis.frost + crisis.red + crisis.hyp > 0.01;
+      u.uCold.value = temperature.thermal ? 0 : coolingAmount();
+      lens.current.visible = crisis.frost + crisis.red + crisis.hyp + u.uCold.value > 0.01;
     }
   }, 0.5);
 

@@ -17,6 +17,8 @@ import { cancelarDestino, currentGoal, onWorldChange, vr } from '../vr/vrEngine'
 import { suitState } from '../vr/suit/state';
 import { bio } from '../hud/bio';
 import { mission, missionAviso, missionActive } from '../mission/mission';
+import { temperature } from './temperature';
+import type { VRCommand, VRCommandResult } from '../vr/shortcuts';
 
 export type Donde = 'ruta' | 'mirada';
 export type EventoTerreno = 'rocks' | 'hill' | 'sand' | 'cold';
@@ -106,14 +108,31 @@ export function tormentaSolar(nivel: 'alerta' | 'critico' | null) {
   abortarAlHabitat('ABORTAR · TORMENTA SOLAR', 'volver al hábitat por la ruta de escape');
 }
 
-/** A headset shortcut starts the event immediately, without the ten-minute warning. */
+/** A second press stops the event; the first starts it immediately. */
 export function tormentaSolarDesdeVR(): boolean {
   if (missionActive()) {
     Object.assign(missionAviso, { texto: 'EVENTO MANUAL · MODO LIBRE', detalle: 'Selecciona Libre para activar la tormenta con la tecla 1.', nivel: 'info', hasta: performance.now() + 5000 });
     return false;
   }
-  if (escena.spe?.nivel !== 'critico') tormentaSolar('critico');
+  tormentaSolar(escena.spe ? null : 'critico');
   return true;
+}
+
+export function executeVRCommand(command: VRCommand): VRCommandResult {
+  if (command?.type === 'solar-storm') return tormentaSolarDesdeVR() ? { ok: true } : { ok: false, reason: 'mission-mode' };
+  if (command?.type === 'thermal-view') {
+    temperature.thermal = !temperature.thermal;
+    aviso(temperature.thermal ? 'VISTA TÉRMICA DEL SUELO' : 'VISTA NORMAL', temperature.thermal ? 'temperatura simulada: azul = frío, amarillo = más cálido' : 'colores originales restaurados', 'info');
+    return { ok: true };
+  }
+  if (command?.type === 'cold') {
+    if (missionActive()) return { ok: false, reason: 'mission-mode' };
+    bio.coldManual = !bio.coldManual;
+    temperature.cold = bio.coldManual;
+    aviso(bio.coldManual ? 'FRÍO ACTIVADO' : 'FRÍO DESACTIVADO', bio.coldManual ? 'el escenario se enfría: sigue la temperatura en °C' : 'temperatura y color recuperándose', bio.coldManual ? 'alerta' : 'info');
+    return { ok: true };
+  }
+  return { ok: false, reason: 'invalid-command' };
 }
 
 function abortarAlHabitat(texto: string, detalle: string) {
@@ -133,6 +152,8 @@ export function limpiarEscenario() {
     polvoGestion = true;
   }
   escena.spe = null;
+  bio.coldManual = false;
+  temperature.cold = false;
   escena.version++;
   aviso('ESCENARIO LIMPIO', 'sin eventos activos', 'info', 3000);
 }

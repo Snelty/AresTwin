@@ -33,7 +33,8 @@ import { useSimStore } from '../store/useSimStore';
 import { layerState, setLayer, type CapaId } from '../lib/layers';
 import { MOBILE_VR } from './mobileVR';
 import './mobileVR.css';
-import { isSolarStormShortcut, type VRCommand, type VRCommandResult } from './shortcuts';
+import { vrCommandForKey, type VRCommandResult } from './shortcuts';
+import { applyTemperature } from '../sim/temperature';
 
 const net = { state: null as SyncState | null, routeId: -1, hazardsKey: '', avisoId: 0, pose: null as PoseNet | null, poseAt: 0, rtt: NaN };
 /** Longest the phone extrapolates a pose (s): beyond it, a stalled laptop must not drift you away. */
@@ -227,7 +228,6 @@ export function VRCanvas() {
   }, [status]);
   const [started, setStarted] = useState(false);
   const [mode, setMode] = useState<Mode>('none');
-  const sensor = mode === 'sensor';
   const [stereo, setStereo] = useState(true);
   const [recenter, setRecenter] = useState(0);
   // Cardboard button = one tap: JARVIS ↔ normal view. Two quick taps: recentre (as before).
@@ -252,14 +252,15 @@ export function VRCanvas() {
   useEffect(() => {
     if (!started) return;
     const keydown = (event: KeyboardEvent) => {
-      if (!isSolarStormShortcut(event)) return;
+      const command = vrCommandForKey(event);
+      if (!command) return;
       event.preventDefault();
       const socket = connect('vr-client');
-      const failed = (detail: string) => Object.assign(missionAviso, { texto: 'TORMENTA SOLAR · TECLA 1', detalle: detail, nivel: 'info', hasta: performance.now() + 5000 });
+      const failed = (detail: string) => Object.assign(missionAviso, { texto: 'CONTROL VR · TECLAS 1 / 2 / 3', detalle: detail, nivel: 'info', hasta: performance.now() + 5000 });
       if (!socket.connected) { failed('Sin conexión al servidor.'); return; }
-      socket.timeout(3500).emit('vr-command', { type: 'solar-storm' } satisfies VRCommand, (error: Error | null, result?: VRCommandResult) => {
+      socket.timeout(3500).emit('vr-command', command, (error: Error | null, result?: VRCommandResult) => {
         if (error || !result) failed('El comando no llegó a la laptop. Intenta de nuevo.');
-        else if (!result.ok) failed(result.reason === 'mission-mode' ? 'Selecciona el modo Libre en la laptop.' : 'Abre y conecta la vista de laptop para iniciar la tormenta.');
+        else if (!result.ok) failed(result.reason === 'mission-mode' ? 'Selecciona el modo Libre en la laptop.' : 'Abre y conecta la vista de laptop para usar los comandos.');
       });
     };
     window.addEventListener('keydown', keydown);
@@ -272,6 +273,7 @@ export function VRCanvas() {
     socket.on('state', (s: SyncState) => {
       net.state = s;
       if (s.bio) applyBio(s.bio);
+      if (s.temperature) applyTemperature(s.temperature);
       if (s.nav) applyNav(s.nav);
     });
     socket.on('pose', (p: PoseNet) => {
@@ -372,7 +374,7 @@ export function VRCanvas() {
         {/* Suit holograms on the visor (one per eye in stereo) and the lens layer. */}
         {started && <VisorHud stereo={stereo} mobile={MOBILE_VR} readouts={false} />}
         {started && <JarvisOverlay stereo={stereo} mobile={MOBILE_VR} panels={false} />}
-        {started && <VrHud stereo={stereo} />}
+        {started && <VrHud stereo={stereo} latencyMs={hud.ping} />}
         {/* Your own body: look down and you see the suit, the boots and your shadow. */}
         <SuitModel firstPerson />
         <Governor target={MOBILE_VR ? 50 : 38} min={MOBILE_VR ? 0.9 : 0.7} />
@@ -402,13 +404,7 @@ export function VRCanvas() {
         <div className={`vr-status absolute top-1 inset-x-0 flex justify-around text-[10px] font-mono text-slate-200/85 pointer-events-none ${MOBILE_VR && stereo ? 'mobile-vr-stereo-status' : ''}`}>
           {(stereo ? [0, 1] : [0]).map((i) => (
             <span key={i}>
-              {MOBILE_VR ? <>{hud.connected ? (hud.host ? 'Laptop ✓' : 'Esperando laptop') : 'Sin conexión'} · {hud.heading.toFixed(0)}° {card(hud.heading)}{hud.walking ? ' · Avanzando' : ''}</> : <>
-              {hud.connected ? (hud.host ? 'laptop ✓' : 'esperando laptop') : 'sin servidor'} · {Number.isFinite(hud.ping) ? `${hud.ping.toFixed(0)} ms` : '—'}{hud.poseRelay ? ' · pose directa' : ''} · rumbo{' '}
-              {hud.heading.toFixed(0)}° {card(hud.heading)}
-              {sensor ? (hud.source === 'relative' || hud.source === 'generic-relative' ? ' · giroscopio (sin brújula)' : ' · brújula') : mode === 'gravity' ? (mag.samples ? ' · acelerómetro + brújula' : ` · inclinar para girar${live.turning ? (live.turning > 0 ? ' ▶' : ' ◀') : ''}`) : ' · sin sensor'}
-              {' '}· lecturas {hud.samples} · enviados {hud.sent}
-              {hud.walking && <b className="text-emerald-300"> · ▼ avanzando {hud.gazeSpeed.toFixed(1)} m/s</b>}
-              </>}
+              {hud.heading.toFixed(0)}° {card(hud.heading)}{hud.walking ? ' · Avanzando' : ''}
             </span>
           ))}
         </div>

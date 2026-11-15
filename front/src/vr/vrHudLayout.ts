@@ -12,5 +12,7 @@ export function vrHudLayout(halfW: number, halfH: number) {
     analysis: { x: 0, y: bottom + analysisHeight / 2, w: analysisWidth, h: analysisHeight },
     pulse: { x: halfW * 0.60, y: bottom + vitalHeight / 2, w: vitalWidth, h: vitalHeight },
     map: { x: halfW * 0.77 - mapSize / 2, y: halfH * 0.60 - mapSize / 2, w: mapSize, h: mapSize },
+    latency: { x: 0, y: -halfH * 0.82, w: Math.min(halfW * 0.32, halfH * 0.40), h: Math.min(halfW * 0.32, halfH * 0.40) / 4 },
+    climate: { x: 0, y: -halfH * 0.82, w: Math.min(halfW * 0.65, halfH * 0.84), h: Math.min(halfW * 0.65, halfH * 0.84) * 160 / 512 },
   };
 }

@@ -14,6 +14,7 @@ import { terrainUniforms } from '../lib/gpuMaps';
 import { HALF, WORLD_SIZE } from '../lib/terrain';
 import { layerUniforms } from '../lib/layers';
 import { marsFog } from './marsFog';
+import { thermalUniforms, THERMAL_GLSL } from './thermal';
 
 const loader = new THREE.TextureLoader();
 const BASE = import.meta.env.BASE_URL;
@@ -222,6 +223,7 @@ export function makeGroundMaterial({ kind }: GroundOptions) {
       uHazeScaleH: skyUniforms.uHazeScaleH,
       uMarsFog: marsFog,
       ...layerUniforms,
+      ...thermalUniforms,
     });
     if (site) Object.assign(shader.uniforms, terrainUniforms, siteAlbedo, shadeUniforms, layerUniforms);
     else Object.assign(shader.uniforms, regionUniforms, siteAlbedo);
@@ -240,6 +242,7 @@ export function makeGroundMaterial({ kind }: GroundOptions) {
 varying vec3 vWPos; varying vec3 vWNormal;
 ${GROUND_GLSL}
 ${HAZE_GLSL}
+${THERMAL_GLSL}
 uniform sampler2D uSiteAlb; uniform float uSiteAlbOn;
 uniform sampler2D uLayer; uniform float uLayerOn; uniform vec4 uLayerRect; uniform float uLayerRegionOn;
 ${
@@ -341,6 +344,17 @@ ${
   }`
     : ''
 }
+  // Temperature is a scenario estimate; it is independent of the TES inertia TIFF.
+  if (uThermalOn > 0.5) {
+    float sunFacing = max(0.0, dot(normalize(vWNormal), uSunDir));
+    float localC = uScenarioTempC + (sunFacing - 0.5) * 16.0 - (1.0 - gSun) * 12.0;
+    vec3 heat = scenarioHeatColor(localC);
+    diffuseColor.rgb = heat * 0.30;
+    gExtraEmit = heat * 0.08;
+  } else if (uScenarioCooling > 0.01) {
+    float luminance = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.28, 0.65, 1.0) * max(0.12, luminance), uScenarioCooling * 0.65);
+  }
 }`,
       )
       .replace(

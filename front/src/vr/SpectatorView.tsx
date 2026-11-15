@@ -17,7 +17,7 @@ import { SuitModel, setSuitChoice, suitChoice } from './SuitModel';
 import { useDynamicRoute } from './useDynamicRoute';
 import { EYE_HEIGHT, cancelarDestino, setDestino, onWorldChange, currentGoal, deployDrone, moveAstronaut, recalculateRoute, setSolarTime, setWorldListener, stepDrone, updateBody, vr } from './vrEngine';
 import { Governor, governorState } from '../render/Governor';
-import { formatHours } from '../lib/marsTime';
+import { formatHours, groundTempC } from '../lib/marsTime';
 import { suitState } from './suit/state';
 import { DIM } from './suit/build';
 import { rt } from '../store/simEngine';
@@ -39,8 +39,10 @@ import { jarvis } from '../jarvis/detector';
 import { bindJarvisSync, toggleJarvis } from '../jarvis/sync';
 import { NavMapDom, NavPanel } from '../nav/NavPanel';
 import { navSnapshot, stepNav } from '../nav/nav';
-import { escena, stepEscena, tormentaSolarDesdeVR } from '../sim/escenario';
-import { isSolarStormShortcut, type VRCommand, type VRCommandResult } from './shortcuts';
+import { escena, stepEscena, executeVRCommand } from '../sim/escenario';
+import { stepTemperature, temperature, temperatureSnapshot } from '../sim/temperature';
+import { bio } from '../hud/bio';
+import { vrCommandForKey, type VRCommand, type VRCommandResult } from './shortcuts';
 import { EventosTab, NavStats, Section, Toggle } from './SpectatorMenu';
 import { bd, guardarDestino, iniciarBd } from '../jarvis/bd';
 import { RANGOS, mapa } from '../nav/drawNav';
@@ -123,6 +125,7 @@ function HostLoop({ thirdPerson }: { thirdPerson: boolean }) {
       stepEscena(dt);
     }
     stepNav(dt);
+    stepTemperature(dt, groundTempC(rt.sun.ltst, rt.lat, rt.mars.decl, rt.mars.rAU), bio.coldManual);
     const v = vel.current;
     if (Number.isFinite(v.px) && dt > 0) {
       const a = 1 - Math.exp(-dt * 12);
@@ -152,6 +155,7 @@ function HostLoop({ thirdPerson }: { thirdPerson: boolean }) {
         gaze: { on: gaze.on, speed: gaze.speed, thr: gaze.thr, walking: gaze.walking },
         drone: { x: d.x, y: d.y, z: d.z, heading: d.heading, state: d.state, rotor: d.rotor, scan: d.scanProgress },
         bio: bioSnapshot(),
+        temperature: temperatureSnapshot(),
         ...(sendNav ? { nav: navSnapshot() } : {}),
       });
     }
@@ -289,9 +293,8 @@ export function SpectatorView() {
     const socket = connect('spectator-host');
     bindJarvisSync(socket);
     const handleVRCommand = (command: VRCommand, reply?: (result: VRCommandResult) => void) => {
-      if (command?.type !== 'solar-storm') { reply?.({ ok: false, reason: 'invalid-command' }); return; }
-      const activated = tormentaSolarDesdeVR();
-      reply?.(activated ? { ok: true } : { ok: false, reason: 'mission-mode' });
+      const result = executeVRCommand(command);
+      reply?.(result);
     };
     socket.on('vr-command', handleVRCommand);
     socket.on('state', (s: SyncState) => {
@@ -346,9 +349,10 @@ export function SpectatorView() {
   // Keyboard + mouse look (when no headset is connected).
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
-      if (remote.vrConnected && isSolarStormShortcut(e)) {
+      const command = vrCommandForKey(e);
+      if (remote.vrConnected && command) {
         e.preventDefault();
-        tormentaSolarDesdeVR();
+        executeVRCommand(command);
         return;
       }
       keys.add(e.code);
@@ -427,11 +431,6 @@ export function SpectatorView() {
             ☰ Menú
           </button>
           <span className="font-display tracking-[0.22em] text-cyan-200 text-sm hidden md:inline">ARES-TWIN</span>
-          <span className="flex items-center gap-2 font-mono text-[11.5px]" title="Servidor de sincronización y casco (celular)">
-            <span className={hud.connected ? 'text-emerald-300' : 'text-red-300'}>● servidor</span>
-            <span className={hud.vr ? 'text-emerald-300' : 'text-slate-500'}>● casco</span>
-            <span className="text-slate-500">{Number.isFinite(hud.ping) ? `${hud.ping.toFixed(0)} ms` : ''}</span>
-          </span>
           <button onClick={() => (toggleJarvis(), force((k) => k + 1))} title="Vista JARVIS o normal en el visor (J)" className={`${btn} ${jarvis.on ? 'border-fuchsia-400/80 text-fuchsia-200 bg-fuchsia-500/10' : 'border-slate-600 text-slate-400'}`}>
             {jarvis.on ? '◆ JARVIS' : '○ Normal'}
           </button>
@@ -442,6 +441,10 @@ export function SpectatorView() {
       </div>
 
       {/* Side menu: icon tabs + the open tab. Folds away with M or ☰. */}
+      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 pointer-events-none rounded bg-black/25 px-2 py-0.5 font-mono text-[12px] text-slate-200" aria-label="Latencia de conexión">
+        {(temperature.cold || temperature.thermal || temperature.baselineC - temperature.temperatureC > 1) && <span className="mr-3 text-cyan-100">{temperature.temperatureC.toFixed(0)} °C · {temperature.thermal ? 'Térmico suelo' : 'Frío'} (sim.)</span>}
+        {Number.isFinite(hud.ping) ? `${hud.ping.toFixed(0)} ms` : '— ms'}
+      </div>
       {tab && (
         <div className="absolute top-[64px] left-3 bottom-3 flex gap-2 pointer-events-none">
           <nav className="glass pointer-events-auto flex flex-col gap-1 p-1.5 self-start">
