@@ -434,9 +434,6 @@ export function SpectatorView() {
           <button onClick={() => (toggleJarvis(), force((k) => k + 1))} title="Vista JARVIS o normal en el visor (J)" className={`${btn} ${jarvis.on ? 'border-fuchsia-400/80 text-fuchsia-200 bg-fuchsia-500/10' : 'border-slate-600 text-slate-400'}`}>
             {jarvis.on ? '◆ JARVIS' : '○ Normal'}
           </button>
-          <button onClick={() => setThirdPerson((t) => !t)} title="Primera o tercera persona (V)" className={`${btn} border-slate-600`}>
-            {thirdPerson ? '👁 3ª persona' : '👁 1ª persona'}
-          </button>
         </div>
       </div>
 
@@ -591,8 +588,11 @@ export function SpectatorView() {
               {mapUi.grande ? '⤡' : '⤢'}
             </button>
           </div>
+          <button data-ui onClick={() => setThirdPerson((t) => !t)} title="Primera o tercera persona (V)" className={`${btn} absolute top-16 right-3 w-[112px] glass border-slate-600 text-slate-200`}>
+            {thirdPerson ? '👁 3ª persona' : '👁 1ª persona'}
+          </button>
           {(thirdPerson || mapUi.grande) && (
-            <div data-ui className={`absolute top-16 right-3 max-w-[calc(100vw-24px)] max-h-[calc(100vh-76px)] overflow-y-auto ${mapUi.grande ? 'w-[min(440px,44vw)]' : 'w-[clamp(240px,23vw,320px)]'}`}>
+            <div data-ui className={`absolute top-[128px] right-3 max-w-[calc(100vw-24px)] max-h-[calc(100vh-140px)] overflow-y-auto ${mapUi.grande ? 'w-[min(440px,44vw)]' : 'w-[clamp(240px,23vw,320px)]'}`}>
               <NavMapDom className="w-full h-auto" onPick={pick} />
             </div>
           )}
