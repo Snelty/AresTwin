@@ -1,0 +1,33 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ares-front-http",
+      "runtimeExecutable": "D:/Program Files/nodejs/node.exe",
+      "runtimeArgs": [
+        "front/node_modules/vite/bin/vite.js",
+        "front"
+      ],
+      "env": {
+        "VITE_HTTP": "1"
+      },
+      "port": 5173
+    },
+    {
+      "name": "ares-backend",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "uvicorn",
+        "backend.app.main:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000",
+        "--workers",
+        "1"
+      ],
+      "port": 8000
+    }
+  ]
+}

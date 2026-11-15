@@ -1,0 +1,24 @@
+Astronauta externo (vista en tercera persona, experimental)
+==========================================================
+
+Bandera: abrí la laptop con ?astronauta=render (o activalo en Menú > Entorno >
+"Astronauta de render/"). Carga este archivo:
+
+    astronauta-render.glb
+
+exportado de render/astronauta/Spacesuit_1.blend. En Blender:
+  File > Export > glTF 2.0 (.glb/.gltf)
+    - Format: glTF Binary (.glb)
+    - Include: Visible Objects
+    - Transform: +Y Up (activado)
+    - Mesh: Apply Modifiers (activado)
+    - Compression: desactivada (sin Draco: el visor no tiene el decodificador local)
+    - Material: Export, Images: Automatic (o JPEG para que pese menos)
+
+Escala, altura y posición no importan: el visor lo escala a 1,88 m, apoya los
+pies en el suelo y lo centra. Debe mirar hacia -Y en Blender (el frente
+normal), que en glTF queda hacia +Z.
+
+No tiene esqueleto, así que sólo se balancea al caminar. En primera persona y en
+el celular se sigue viendo el traje procedural, que sí mueve brazos y piernas.
+Sin el archivo, o sin la bandera, se usa el traje procedural.

@@ -1,0 +1,155 @@
+{
+  "version": "1.0",
+  "inicio": {
+    "x": 238.75,
+    "y": 231.25
+  },
+  "hora_solar": 10.0,
+  "O2_disponible_L": 170.0,
+  "capacidad_kg": 5.0,
+  "sitios": [
+    {
+      "id": 1,
+      "x": 68.75,
+      "y": 93.75,
+      "valor": 10,
+      "mineral": "sulfatos",
+      "masa_kg": 0.3,
+      "perforacion_min": 15,
+      "ventana": [
+        10.0,
+        14.0
+      ]
+    },
+    {
+      "id": 2,
+      "x": 31.25,
+      "y": 436.25,
+      "valor": 6,
+      "mineral": "sulfatos",
+      "masa_kg": 0.3,
+      "perforacion_min": 15,
+      "ventana": [
+        10.0,
+        14.0
+      ]
+    },
+    {
+      "id": 3,
+      "x": 48.75,
+      "y": 291.25,
+      "valor": 4,
+      "mineral": "filosilicatos",
+      "masa_kg": 0.3,
+      "perforacion_min": 15,
+      "ventana": [
+        10.0,
+        14.0
+      ]
+    },
+    {
+      "id": 4,
+      "x": 193.75,
+      "y": 346.25,
+      "valor": 3,
+      "mineral": "sulfatos",
+      "masa_kg": 0.3,
+      "perforacion_min": 15,
+      "ventana": [
+        10.0,
+        14.0
+      ]
+    },
+    {
+      "id": 5,
+      "x": 193.75,
+      "y": 291.25,
+      "valor": 3,
+      "mineral": "sulfatos",
+      "masa_kg": 0.3,
+      "perforacion_min": 15,
+      "ventana": [
+        10.0,
+        14.0
+      ]
+    },
+    {
+      "id": 6,
+      "x": 31.25,
+      "y": 221.25,
+      "valor": 3,
+      "mineral": "sulfatos",
+      "masa_kg": 0.3,
+      "perforacion_min": 15,
+      "ventana": [
+        10.0,
+        14.0
+      ]
+    },
+    {
+      "id": 7,
+      "x": 356.25,
+      "y": 148.75,
+      "valor": 2,
+      "mineral": "silice",
+      "masa_kg": 0.3,
+      "perforacion_min": 15,
+      "ventana": [
+        10.0,
+        14.0
+      ]
+    },
+    {
+      "id": 8,
+      "x": 338.75,
+      "y": 453.75,
+      "valor": 1,
+      "mineral": "silice",
+      "masa_kg": 0.3,
+      "perforacion_min": 15,
+      "ventana": [
+        10.0,
+        14.0
+      ]
+    },
+    {
+      "id": 9,
+      "x": 356.25,
+      "y": 21.25,
+      "valor": 1,
+      "mineral": "silice",
+      "masa_kg": 0.3,
+      "perforacion_min": 15,
+      "ventana": [
+        10.0,
+        14.0
+      ]
+    },
+    {
+      "id": 10,
+      "x": 283.75,
+      "y": 256.25,
+      "valor": 1,
+      "mineral": "silice",
+      "masa_kg": 0.3,
+      "perforacion_min": 15,
+      "ventana": [
+        10.0,
+        14.0
+      ]
+    },
+    {
+      "id": 11,
+      "x": 31.25,
+      "y": 166.25,
+      "valor": 1,
+      "mineral": "silice",
+      "masa_kg": 0.3,
+      "perforacion_min": 15,
+      "ventana": [
+        10.0,
+        14.0
+      ]
+    }
+  ]
+}

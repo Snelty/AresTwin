@@ -1,0 +1,181 @@
+{
+  "version": "1.0",
+  "sitios": [
+    {
+      "id": 1,
+      "x": 68.75,
+      "y": 93.75,
+      "valor": 10,
+      "mineral": "sulfatos",
+      "masa_kg": 0.3,
+      "perforacion_min": 15,
+      "ventana": [
+        10.0,
+        14.0
+      ],
+      "lon": 137.409331,
+      "lat": -4.825588,
+      "fuente": "CRISM FRT0000B6F1 BD2100_2 = 0.0523 (p90 de la escena 0.0088)"
+    },
+    {
+      "id": 2,
+      "x": 31.25,
+      "y": 436.25,
+      "valor": 6,
+      "mineral": "sulfatos",
+      "masa_kg": 0.3,
+      "perforacion_min": 15,
+      "ventana": [
+        10.0,
+        14.0
+      ],
+      "lon": 137.408699,
+      "lat": -4.819809,
+      "fuente": "CRISM FRT0000B6F1 BD1900_2 = 0.0214 (p90 de la escena 0.0047)"
+    },
+    {
+      "id": 3,
+      "x": 48.75,
+      "y": 291.25,
+      "valor": 4,
+      "mineral": "filosilicatos",
+      "masa_kg": 0.3,
+      "perforacion_min": 15,
+      "ventana": [
+        10.0,
+        14.0
+      ],
+      "lon": 137.408994,
+      "lat": -4.822256,
+      "fuente": "CRISM FRT0000B6F1 D2300 = 0.0061 (p90 de la escena 0.0013)"
+    },
+    {
+      "id": 4,
+      "x": 193.75,
+      "y": 346.25,
+      "valor": 3,
+      "mineral": "sulfatos",
+      "masa_kg": 0.3,
+      "perforacion_min": 15,
+      "ventana": [
+        10.0,
+        14.0
+      ],
+      "lon": 137.41144,
+      "lat": -4.821328,
+      "fuente": "CRISM FRT0000B6F1 BD1900_2 = 0.0115 (p90 de la escena 0.0047)"
+    },
+    {
+      "id": 5,
+      "x": 193.75,
+      "y": 291.25,
+      "valor": 3,
+      "mineral": "sulfatos",
+      "masa_kg": 0.3,
+      "perforacion_min": 15,
+      "ventana": [
+        10.0,
+        14.0
+      ],
+      "lon": 137.41144,
+      "lat": -4.822256,
+      "fuente": "CRISM FRT0000B6F1 BD1900_2 = 0.0103 (p90 de la escena 0.0047)"
+    },
+    {
+      "id": 6,
+      "x": 31.25,
+      "y": 221.25,
+      "valor": 3,
+      "mineral": "sulfatos",
+      "masa_kg": 0.3,
+      "perforacion_min": 15,
+      "ventana": [
+        10.0,
+        14.0
+      ],
+      "lon": 137.408699,
+      "lat": -4.823437,
+      "fuente": "CRISM FRT0000B6F1 BD1900_2 = 0.0100 (p90 de la escena 0.0047)"
+    },
+    {
+      "id": 7,
+      "x": 356.25,
+      "y": 148.75,
+      "valor": 2,
+      "mineral": "silice",
+      "masa_kg": 0.3,
+      "perforacion_min": 15,
+      "ventana": [
+        10.0,
+        14.0
+      ],
+      "lon": 137.414182,
+      "lat": -4.82466,
+      "fuente": "CRISM FRT0000B6F1 BD2210_2 = 0.0053 (p90 de la escena 0.0032)"
+    },
+    {
+      "id": 8,
+      "x": 338.75,
+      "y": 453.75,
+      "valor": 1,
+      "mineral": "silice",
+      "masa_kg": 0.3,
+      "perforacion_min": 15,
+      "ventana": [
+        10.0,
+        14.0
+      ],
+      "lon": 137.413886,
+      "lat": -4.819514,
+      "fuente": "CRISM FRT0000B6F1 BD2210_2 = 0.0040 (p90 de la escena 0.0032)"
+    },
+    {
+      "id": 9,
+      "x": 356.25,
+      "y": 21.25,
+      "valor": 1,
+      "mineral": "silice",
+      "masa_kg": 0.3,
+      "perforacion_min": 15,
+      "ventana": [
+        10.0,
+        14.0
+      ],
+      "lon": 137.414182,
+      "lat": -4.826811,
+      "fuente": "CRISM FRT0000B6F1 BD2210_2 = 0.0040 (p90 de la escena 0.0032)"
+    },
+    {
+      "id": 10,
+      "x": 283.75,
+      "y": 256.25,
+      "valor": 1,
+      "mineral": "silice",
+      "masa_kg": 0.3,
+      "perforacion_min": 15,
+      "ventana": [
+        10.0,
+        14.0
+      ],
+      "lon": 137.412959,
+      "lat": -4.822846,
+      "fuente": "CRISM FRT0000B6F1 BD2210_2 = 0.0040 (p90 de la escena 0.0032)"
+    },
+    {
+      "id": 11,
+      "x": 31.25,
+      "y": 166.25,
+      "valor": 1,
+      "mineral": "silice",
+      "masa_kg": 0.3,
+      "perforacion_min": 15,
+      "ventana": [
+        10.0,
+        14.0
+      ],
+      "lon": 137.408699,
+      "lat": -4.824365,
+      "fuente": "CRISM FRT0000B6F1 BD2210_2 = 0.0036 (p90 de la escena 0.0032)"
+    }
+  ]
+}

@@ -1,0 +1,166 @@
+[
+  {
+    "id": "tes",
+    "title": "TES · inercia térmica",
+    "source": "datos_crudos/tes/TES_Thermal_Inertia_numeric.tif",
+    "sha256": "9d82a1e962e8c17bfda56b998af361357b50e72553761e631c72d433a5289958",
+    "rows": 769,
+    "columns": 1585,
+    "min": 289.0,
+    "max": 486.0,
+    "unit": "J m⁻² K⁻¹ s⁻½",
+    "description": "Exportación numérica de JMARS. Sin georreferencia: vista independiente; no se ubica sobre el terreno.",
+    "image": "tes.png",
+    "reference": null,
+    "colors": [
+      "#440154",
+      "#3b528b",
+      "#21918c",
+      "#5ec962",
+      "#fde725"
+    ],
+    "textureRect": [
+      0.0,
+      0.0,
+      480,
+      480
+    ],
+    "registered": false
+  },
+  {
+    "id": "usgs",
+    "title": "USGS · DEM original a 1 m",
+    "source": "datos_crudos/usgs/dem_gale_1m_ventana.npy",
+    "sha256": "08d60df25ad77e9a7e23f1eaa03148ae89e0f05f37b05e5b03ef7cff97aec1e8",
+    "rows": 540,
+    "columns": 540,
+    "min": -3424.468017578125,
+    "max": -3333.213134765625,
+    "unit": "m",
+    "description": "Recorte original de Gale, con margen de 20 píxeles. Norte arriba.",
+    "image": "usgs.png",
+    "reference": "Elevación respecto al areoide MOLA",
+    "colors": [
+      "#263141",
+      "#705242",
+      "#b17c50",
+      "#dbb580",
+      "#faedc7"
+    ],
+    "dem": "usgs.bin",
+    "meshRows": 257,
+    "meshColumns": 257,
+    "width": 539,
+    "depth": 539,
+    "cell": 1,
+    "textureRect": [
+      -25.75,
+      0.0,
+      539,
+      539
+    ],
+    "registered": true
+  },
+  {
+    "id": "terreno",
+    "title": "DEM · ventana de la misión",
+    "source": "terreno/elevacion.bin",
+    "sha256": "f90f83e31664f1709e3e0bcabe7fcb5b98800dc37bba1f0c8c294e455a72a727",
+    "rows": 192,
+    "columns": 192,
+    "min": 0.50650954246521,
+    "max": 84.81489562988281,
+    "unit": "m",
+    "description": "Paquete de 480 × 480 m utilizado por el simulador. Norte arriba.",
+    "image": "terreno.png",
+    "reference": "Altura sobre z_ref = -3420 m",
+    "colors": [
+      "#263141",
+      "#705242",
+      "#b17c50",
+      "#dbb580",
+      "#faedc7"
+    ],
+    "dem": "terreno.bin",
+    "meshRows": 192,
+    "meshColumns": 192,
+    "width": 477.5,
+    "depth": 477.5,
+    "cell": 2.5,
+    "textureRect": [
+      0.0,
+      0.0,
+      477.5,
+      477.5
+    ],
+    "registered": true
+  },
+  {
+    "id": "mid",
+    "title": "Gale · DEM regional",
+    "source": "front/public/gale/mid-dem.bin",
+    "sha256": "ab4d4a4bf24c5135cb2e308c558b8cac1ccc456cf08a1dea06b5826be131b0c8",
+    "rows": 512,
+    "columns": 512,
+    "min": -953.8000000000001,
+    "max": 1284.6000000000001,
+    "unit": "m",
+    "description": "Relieve regional ya disponible en el proyecto. Norte arriba.",
+    "image": "mid.png",
+    "reference": "Altura relativa al sitio regional (distinto del origen de la misión)",
+    "colors": [
+      "#263141",
+      "#705242",
+      "#b17c50",
+      "#dbb580",
+      "#faedc7"
+    ],
+    "dem": "mid.bin",
+    "meshRows": 257,
+    "meshColumns": 257,
+    "width": 10978.515625,
+    "depth": 10978.515625,
+    "cell": 21.484375,
+    "textureRect": [
+      -1380.2508758800104,
+      126.72501882881625,
+      10978.515625,
+      10978.515625
+    ],
+    "registered": true
+  },
+  {
+    "id": "far",
+    "title": "MOLA · cráter Gale",
+    "source": "front/public/gale/far-dem.bin",
+    "sha256": "8a8c6949dec55ca0ca7947cb7303e239ae25f416c7fd89e33b63ec442a25cc0f",
+    "rows": 384,
+    "columns": 384,
+    "min": -1168.0,
+    "max": 4820.0,
+    "unit": "m",
+    "description": "Relieve regional ya disponible en el proyecto. Norte arriba.",
+    "image": "far.png",
+    "reference": "Altura relativa al sitio regional (distinto del origen de la misión)",
+    "colors": [
+      "#263141",
+      "#705242",
+      "#b17c50",
+      "#dbb580",
+      "#faedc7"
+    ],
+    "dem": "far.bin",
+    "meshRows": 257,
+    "meshColumns": 257,
+    "width": 219427.0833333333,
+    "depth": 219427.0833333333,
+    "cell": 572.9166666666666,
+    "textureRect": [
+      -1380.2508758800104,
+      126.72501882881625,
+      219427.0833333333,
+      219427.0833333333
+    ],
+    "registered": true
+  }
+]
