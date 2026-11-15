@@ -15,7 +15,7 @@ import { Server } from 'socket.io';
 
 export const TICK_HZ = 60;
 
-export function attachSync(httpServer, { log = console.log } = {}) {
+export function attachSync(httpServer, { log = console.log, solo = false } = {}) {
   const io = new Server(httpServer, {
     path: '/socket.io',
     cors: { origin: true },
@@ -24,6 +24,21 @@ export function attachSync(httpServer, { log = console.log } = {}) {
     // Leave other websocket upgrades (e.g. Vite's hot reload) alone.
     destroyUpgrade: false,
   });
+
+  // Public VPS: every browser runs its own game. No body, camera, HUD or world is relayed.
+  if (solo) {
+    io.on('connection', (socket) => {
+      socket.on('register', (role) => {
+        if (role !== 'vr-client' && role !== 'spectator-host') return;
+        socket.emit('session', { mode: 'solo', id: socket.id });
+      });
+      socket.on('ping-ares', (t, ack) => typeof ack === 'function' && ack(t));
+      socket.on('vr-command', (_command, ack) => {
+        if (typeof ack === 'function') ack({ ok: false, reason: 'local-only' });
+      });
+    });
+    return io;
+  }
 
   const state = {
     t: 0,

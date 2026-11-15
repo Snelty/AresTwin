@@ -13,6 +13,7 @@
 import { REAL, enuToScene, sceneToEnu } from '../lib/realTerrain';
 import { ensureField, field, type Clase, type DbEntry, type FieldObject } from './catalog';
 import type { LitoId } from './lithology';
+import { VPS_SOLO } from '../lib/deployment';
 
 const URL = '/bd/api.php';
 export const ESCENARIO = REAL ? 'real-480' : 'procedural';
@@ -100,6 +101,13 @@ export async function iniciarBd(autoridad: boolean, cambio?: () => void) {
   onChange = cambio ?? null;
   bd.estado = 'conectando';
   bd.msg = '';
+  if (VPS_SOLO) {
+    ensureField();
+    bd.estado = 'sin bd'; bd.msg = 'Partida individual';
+    field.db = field.dbLocal.slice(); field.dbFrom = 'local'; field.nDb = field.db.length;
+    bd.version++;
+    return;
+  }
   try {
     ensureField();
     await estado();

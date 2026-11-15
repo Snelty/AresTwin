@@ -35,6 +35,14 @@ import { MOBILE_VR } from './mobileVR';
 import './mobileVR.css';
 import { vrCommandForKey, type VRCommandResult } from './shortcuts';
 import { applyTemperature } from '../sim/temperature';
+import { VPS_SOLO } from '../lib/deployment';
+import { createSoloController, soloWalk, stepSoloPlayer } from './soloPlayer';
+import { useDynamicRoute } from './useDynamicRoute';
+import { executeVRCommand } from '../sim/escenario';
+import { MobileControls } from '../mobile/MobileControls';
+import { mobileStick } from '../mobile/joystick';
+
+const soloKeys = new Set<string>();
 
 const net = { state: null as SyncState | null, routeId: -1, hazardsKey: '', avisoId: 0, pose: null as PoseNet | null, poseAt: 0, rtt: NaN };
 /** Longest the phone extrapolates a pose (s): beyond it, a stalled laptop must not drift you away. */
@@ -88,34 +96,40 @@ function HeadRig({ mode, recenter }: { mode: Mode; recenter: number }) {
   const tilt = useMemo(() => new THREE.Quaternion(), []);
   const yawQ = useMemo(() => new THREE.Quaternion(), []);
   const fwd = useMemo(() => new THREE.Vector3(), []);
-  const mouse = useRef({ yaw: vr.heading, pitch: 0, down: false, lx: 0, ly: 0 });
+  const mouse = useRef({ yaw: vr.heading, pitch: 0, down: false, lx: 0, ly: 0, pointerId: null as number | null });
   const lastSend = useRef(0);
   const socket = useMemo(() => connect('vr-client'), []);
+  const soloControl = useRef(createSoloController());
 
   // Without a sensor (desktop testing): drag to look around.
   useEffect(() => {
     if (mode !== 'none') return;
     const m = mouse.current;
     const down = (e: PointerEvent) => {
+      if (VPS_SOLO && (m.down || (e.target as HTMLElement | null)?.closest?.('[data-game-ui], button'))) return;
       m.down = true;
+      m.pointerId = e.pointerId;
       m.lx = e.clientX;
       m.ly = e.clientY;
     };
     const move = (e: PointerEvent) => {
-      if (!m.down) return;
+      if (!m.down || (VPS_SOLO && e.pointerId !== m.pointerId)) return;
       m.yaw += (e.clientX - m.lx) * 0.004;
       m.pitch = Math.max(-1.3, Math.min(1.3, m.pitch - (e.clientY - m.ly) * 0.004));
       m.lx = e.clientX;
       m.ly = e.clientY;
     };
-    const up = () => (m.down = false);
+    const up = (e: PointerEvent) => { if (!VPS_SOLO || e.pointerId === m.pointerId) { m.down = false; m.pointerId = null; } };
+    const blur = () => { m.down = false; m.pointerId = null; };
     window.addEventListener('pointerdown', down);
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
+    if (VPS_SOLO) { window.addEventListener('pointercancel', up); window.addEventListener('blur', blur); }
     return () => {
       window.removeEventListener('pointerdown', down);
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
+      if (VPS_SOLO) { window.removeEventListener('pointercancel', up); window.removeEventListener('blur', blur); }
     };
   }, [mode]);
 
@@ -136,7 +150,7 @@ function HeadRig({ mode, recenter }: { mode: Mode; recenter: number }) {
     const s = net.state;
     const p = net.pose;
     const age = (performance.now() - net.poseAt) / 1000;
-    if (p && age < 0.5) {
+    if (!VPS_SOLO && p && age < 0.5) {
       // Relayed pose (no wait for the server tick), extrapolated with the laptop's velocity
       // by its age plus half the round trip: what the laptop shows NOW. Light smoothing on top.
       const ahead = Math.min(MAX_PREDICT, age + (Number.isFinite(net.rtt) ? net.rtt / 2000 : 0.01));
@@ -144,14 +158,14 @@ function HeadRig({ mode, recenter }: { mode: Mode; recenter: number }) {
       vr.x += (p.x + p.vx * ahead - vr.x) * k;
       vr.z += (p.z + p.vz * ahead - vr.z) * k;
       applyPose(vr.x, vr.z, p.h);
-    } else if (s) {
+    } else if (!VPS_SOLO && s) {
       // No relayed pose (older server): the 60 Hz state, smoothed to hide the network steps.
       const k = 1 - Math.exp(-dt * 18);
       vr.x += (s.position.x - vr.x) * k;
       vr.z += (s.position.z - vr.z) * k;
       applyPose(vr.x, vr.z, s.heading);
     }
-    if (s) {
+    if (!VPS_SOLO && s) {
       const k = 1 - Math.exp(-dt * 18);
       if (s.drone) {
         const d = rt.drone;
@@ -201,13 +215,14 @@ function HeadRig({ mode, recenter }: { mode: Mode; recenter: number }) {
     live.pitch = (pitch * 180) / Math.PI;
     suitState.lookYaw = yaw;
     suitState.lookPitch = pitch;
+    if (VPS_SOLO) stepSoloPlayer(soloControl.current, dt, yaw, pitch, soloKeys, mobileStick);
 
     // Eyes: a hand's width ahead of the neck. Kept steady (no head bob): comfortable inside a headset.
     camera.position.set(vr.x + Math.sin(yaw) * DIM.EYE_FWD, heightAt(vr.x, vr.z) + EYE_HEIGHT, vr.z - Math.cos(yaw) * DIM.EYE_FWD);
 
     // Stream the head rotation (~60 Hz). Volatile: drop, never queue.
     const now = performance.now();
-    if (now - lastSend.current > 15 && socket.connected) {
+    if (!VPS_SOLO && now - lastSend.current > 15 && socket.connected) {
       lastSend.current = now;
       live.sent++;
       const q = camera.quaternion;
@@ -224,15 +239,17 @@ export function VRCanvas() {
   const status = useVRBoot();
   // The same JARVIS catalogue as the laptop (read only).
   useEffect(() => {
-    if (status !== 'loading') void iniciarBd(false);
+    if (status !== 'loading') void iniciarBd(VPS_SOLO);
   }, [status]);
   const [started, setStarted] = useState(false);
   const [mode, setMode] = useState<Mode>('none');
-  const [stereo, setStereo] = useState(true);
+  const [stereo, setStereo] = useState(!VPS_SOLO);
+  useDynamicRoute(VPS_SOLO && started && status !== 'loading');
   const [recenter, setRecenter] = useState(0);
   // Cardboard button = one tap: JARVIS ↔ normal view. Two quick taps: recentre (as before).
   const tap = useRef({ timer: 0 });
   const onTap = () => {
+    if (VPS_SOLO) return;
     if (!started) return;
     if (tap.current.timer) {
       window.clearTimeout(tap.current.timer);
@@ -250,11 +267,25 @@ export function VRCanvas() {
   const secure = window.isSecureContext;
 
   useEffect(() => {
+    if (!VPS_SOLO || !started) return;
+    const movement = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight']);
+    const down = (event: KeyboardEvent) => {
+      if ((event.target as HTMLElement | null)?.closest?.('input, textarea, [contenteditable="true"]')) return;
+      if (movement.has(event.code)) { soloKeys.add(event.code); if (event.code.startsWith('Arrow')) event.preventDefault(); }
+    };
+    const up = (event: KeyboardEvent) => soloKeys.delete(event.code);
+    const blur = () => soloKeys.clear();
+    window.addEventListener('keydown', down); window.addEventListener('keyup', up); window.addEventListener('blur', blur);
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); window.removeEventListener('blur', blur); soloKeys.clear(); };
+  }, [started]);
+
+  useEffect(() => {
     if (!started) return;
     const keydown = (event: KeyboardEvent) => {
       const command = vrCommandForKey(event);
       if (!command) return;
       event.preventDefault();
+      if (VPS_SOLO) { executeVRCommand(command); return; }
       const socket = connect('vr-client');
       const failed = (detail: string) => Object.assign(missionAviso, { texto: 'CONTROL VR · TECLAS 1 / 2 / 3', detalle: detail, nivel: 'info', hasta: performance.now() + 5000 });
       if (!socket.connected) { failed('Sin conexión al servidor.'); return; }
@@ -271,16 +302,19 @@ export function VRCanvas() {
     const socket = connect('vr-client');
     bindJarvisSync(socket);
     socket.on('state', (s: SyncState) => {
+      if (VPS_SOLO) return;
       net.state = s;
       if (s.bio) applyBio(s.bio);
       if (s.temperature) applyTemperature(s.temperature);
       if (s.nav) applyNav(s.nav);
     });
     socket.on('pose', (p: PoseNet) => {
+      if (VPS_SOLO) return;
       net.pose = p;
       net.poseAt = performance.now();
     });
     socket.on('world', (w: WorldNet) => {
+      if (VPS_SOLO) return;
       if (w.routeId !== net.routeId) {
         net.routeId = w.routeId;
         applyRoute(w.route);
@@ -304,7 +338,7 @@ export function VRCanvas() {
     });
     const id = window.setInterval(async () => {
       net.rtt = await ping();
-      setHud({ connected: socket.connected, host: !!net.state?.host, ping: net.rtt, heading: live.heading, pitch: live.pitch, source: compass.source, samples: compass.samples + gravity.samples, sent: live.sent, walking: !!net.state?.gaze?.walking, gazeSpeed: net.state?.gaze?.speed ?? 0, poseRelay: performance.now() - net.poseAt < 500 });
+      setHud({ connected: socket.connected, host: VPS_SOLO || !!net.state?.host, ping: net.rtt, heading: live.heading, pitch: live.pitch, source: compass.source, samples: compass.samples + gravity.samples, sent: live.sent, walking: VPS_SOLO ? soloWalk.walking : !!net.state?.gaze?.walking, gazeSpeed: VPS_SOLO ? soloWalk.speed : net.state?.gaze?.speed ?? 0, poseRelay: !VPS_SOLO && performance.now() - net.poseAt < 500 });
     }, 250);
     return () => window.clearInterval(id);
   }, []);
@@ -318,6 +352,7 @@ export function VRCanvas() {
 
   const start = async () => {
     setProblem('');
+    if (VPS_SOLO) { setMode('none'); setStereo(false); setStarted(true); return; }
     // Permission must be asked inside the tap (iOS). Start listening right away.
     const allowed = await requestCompassPermission();
     startCompass();
@@ -362,7 +397,7 @@ export function VRCanvas() {
 
   return (
     // HTML labels are drawn for one camera only: hide them in the split-screen headset.
-    <div className={`fixed inset-0 bg-black select-none ${MOBILE_VR ? 'mobile-vr' : ''} ${started && stereo ? 'vr-stereo' : ''}`} onClick={onTap}>
+    <div className={`fixed inset-0 bg-black select-none ${VPS_SOLO ? 'mobile-game' : MOBILE_VR ? 'mobile-vr' : ''} ${!VPS_SOLO && started && stereo ? 'vr-stereo' : ''}`} onClick={onTap}>
       {(!MOBILE_VR || started) && <Canvas
         shadows="percentage"
         dpr={[1, Q.dprMax]}
@@ -372,35 +407,35 @@ export function VRCanvas() {
         <SharedWorld />
         {started && <HeadRig mode={mode} recenter={recenter} />}
         {/* Suit holograms on the visor (one per eye in stereo) and the lens layer. */}
-        {started && <VisorHud stereo={stereo} mobile={MOBILE_VR} readouts={false} />}
-        {started && <JarvisOverlay stereo={stereo} mobile={MOBILE_VR} panels={false} />}
-        {started && <VrHud stereo={stereo} latencyMs={hud.ping} />}
+        {started && <VisorHud stereo={stereo} mobile={VPS_SOLO || MOBILE_VR} readouts={false} />}
+        {started && <JarvisOverlay stereo={stereo} mobile={VPS_SOLO || MOBILE_VR} panels={false} />}
+        {started && !VPS_SOLO && <VrHud stereo={stereo} latencyMs={hud.ping} />}
         {/* Your own body: look down and you see the suit, the boots and your shadow. */}
         <SuitModel firstPerson />
-        <Governor target={MOBILE_VR ? 50 : 38} min={MOBILE_VR ? 0.9 : 0.7} />
-        <StereoRenderer enabled={started && stereo} mobile={MOBILE_VR} />
+        <Governor target={VPS_SOLO || MOBILE_VR ? 50 : 38} min={VPS_SOLO || MOBILE_VR ? 0.9 : 0.7} />
+        <StereoRenderer enabled={started && stereo} mobile={VPS_SOLO || MOBILE_VR} />
       </Canvas>}
 
       {!started && (
         <div className="vr-entry absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/75 text-center px-6">
-          <div className="font-display text-2xl tracking-[0.25em] text-cyan-200">ARES-TWIN · CASCO</div>
+          <div className="font-display text-2xl tracking-[0.25em] text-cyan-200">{VPS_SOLO ? 'ARES-TWIN · MARTE' : 'ARES-TWIN · CASCO'}</div>
           <p className="text-sm text-slate-300 max-w-md">
-            Poné el celular en horizontal dentro del Cardboard. Al girar la cabeza gira la vista, como una brújula: mirar al norte real es mirar al norte en Marte.
-            Avanza mirando el suelo o hacia la ruta indicada. También puedes usar el teclado de la laptop.
+            {VPS_SOLO ? 'Usá la ruedita para caminar y arrastrá el resto de la pantalla para mirar alrededor.' : <>Poné el celular en horizontal dentro del Cardboard. Al girar la cabeza gira la vista, como una brújula: mirar al norte real es mirar al norte en Marte. Avanza mirando el suelo o hacia la ruta indicada. También puedes usar el teclado de la laptop.</>}
           </p>
-          {!secure && (
+          {!VPS_SOLO && !secure && (
             <p className="text-sm text-amber-200 max-w-md">
               Esta página está en http: el giroscopio no va a funcionar. Abrí <span className="font-mono">{httpsUrl}</span> y aceptá el certificado.
             </p>
           )}
           <button onClick={start} disabled={status === 'loading'} className="px-6 py-3 rounded-lg border border-cyan-300 text-cyan-100 bg-cyan-500/20 text-lg disabled:opacity-40">
-            {status === 'loading' ? 'Cargando Marte…' : 'Entrar al casco'}
+            {status === 'loading' ? 'Cargando Marte…' : VPS_SOLO ? 'Jugar' : 'Entrar al casco'}
           </button>
-          <p className="text-[11px] text-slate-500">Un toque (botón del Cardboard): vista JARVIS o normal · Doble toque: tomar la dirección actual como «adelante».</p>
+          {!VPS_SOLO && <p className="text-[11px] text-slate-500">Un toque (botón del Cardboard): vista JARVIS o normal · Doble toque: tomar la dirección actual como «adelante».</p>}
         </div>
       )}
 
-      {started && (
+      {started && VPS_SOLO && <MobileControls />}
+      {started && !VPS_SOLO && (
         <div className={`vr-status absolute top-1 inset-x-0 flex justify-around text-[10px] font-mono text-slate-200/85 pointer-events-none ${MOBILE_VR && stereo ? 'mobile-vr-stereo-status' : ''}`}>
           {(stereo ? [0, 1] : [0]).map((i) => (
             <span key={i}>
@@ -409,7 +444,7 @@ export function VRCanvas() {
           ))}
         </div>
       )}
-      {started && problem && (
+      {started && !VPS_SOLO && problem && (
         <div className="vr-problem absolute bottom-3 left-1/2 -translate-x-1/2 max-w-[90vw] rounded border border-amber-400/60 bg-black/80 px-3 py-2 text-[12px] text-amber-100 text-center">
           {problem} {mode === 'none' ? 'Mientras tanto podés arrastrar para mirar. ' : ''}
           <a href="?role=sensor-test" className="underline text-cyan-200 pointer-events-auto">Diagnóstico de sensores</a>

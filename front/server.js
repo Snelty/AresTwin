@@ -13,7 +13,7 @@ import { attachSync, TICK_HZ } from './sync-core.js';
 const PORT = Number(process.env.PORT ?? 3000);
 const app = express();
 const http = createServer(app);
-attachSync(http);
+attachSync(http, { solo: process.env.ARES_SOLO === '1' });
 
 const dist = fileURLToPath(new URL('./dist/', import.meta.url));
 if (existsSync(dist)) app.use(express.static(dist));

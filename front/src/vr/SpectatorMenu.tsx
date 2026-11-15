@@ -7,6 +7,7 @@ import { bio, resetBio } from '../hud';
 import { nav } from '../nav/nav';
 import { mmss } from '../nav/drawNav';
 import { vr } from './vrEngine';
+import { VPS_SOLO } from '../lib/deployment';
 import { escena, eventoTerreno, limpiarEscenario, quitarEvento, tormentaPolvo, tormentaSolar, type Donde } from '../sim/escenario';
 
 /** Re-render every `ms` (live numbers read from mutable objects). */
@@ -144,7 +145,7 @@ export function EventosTab() {
               </button>
             }
           >
-            {hazards.length === 0 && escena.polvo === 0 && !spe && <div className="text-[12px] text-slate-500">Sin eventos. Tocá una tarjeta: el evento aparece {donde === 'ruta' ? 'sobre la ruta, unos 20 m adelante' : 'donde mira el casco'} y la ruta reacciona.</div>}
+            {hazards.length === 0 && escena.polvo === 0 && !spe && <div className="text-[12px] text-slate-500">Sin eventos. Tocá una tarjeta: el evento aparece {donde === 'ruta' ? 'sobre la ruta, unos 20 m adelante' : VPS_SOLO ? 'donde mirás' : 'donde mira el casco'} y la ruta reacciona.</div>}
             <div className="flex flex-wrap gap-1.5">
               {hazards.map((h) => (
                 <span key={h.id} className="inline-flex items-center gap-1 rounded-full border border-slate-600 bg-slate-800/60 pl-2 pr-1 py-0.5 text-[12px]">
