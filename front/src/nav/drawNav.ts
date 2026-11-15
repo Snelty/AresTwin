@@ -127,10 +127,10 @@ export function mapToWorld(px: number, py: number, w = NAV_W): { x: number; z: n
   return { x: vr.x + a * Math.cos(h) + b * Math.sin(h), z: vr.z + a * Math.sin(h) - b * Math.cos(h) };
 }
 
-export function drawNav(g: CanvasRenderingContext2D, w = NAV_W, h = NAV_H) {
+export function drawNav(g: CanvasRenderingContext2D, w = NAV_W, h = NAV_H, mobile = false) {
   g.clearRect(0, 0, w, h);
   // Panel
-  g.fillStyle = 'rgba(6, 14, 26, 0.88)';
+  g.fillStyle = mobile ? 'rgba(6, 14, 26, 0.38)' : 'rgba(6, 14, 26, 0.88)';
   g.strokeStyle = CYAN;
   g.lineWidth = 3;
   g.beginPath();
@@ -372,15 +372,38 @@ export function drawNav(g: CanvasRenderingContext2D, w = NAV_W, h = NAV_H) {
   // ---- Numbers ----
   let y = MAP + 44;
   const line = (txt: string, col = '#e5eff7', size = 40, bold = false) => {
+    if (mobile) {
+      g.save();
+      g.shadowColor = 'rgba(0, 0, 0, 0.9)';
+      g.shadowBlur = 4;
+      g.shadowOffsetY = 2;
+    }
     g.fillStyle = col;
-    const s = Math.max(36, size);
+    const s = Math.max(mobile ? 48 : 36, size);
     g.font = `${bold ? '700' : '600'} ${s}px ${FONT}`;
     for (const row of wrapCanvasText(g, txt, w - 48)) {
       g.fillText(row, 24, y);
       y += s + 10;
     }
+    if (mobile) g.restore();
   };
   g.textAlign = 'left';
+  if (mobile) {
+    line(nav.on ? `► ${nav.label}` : '⌂ HÁBITAT', GOLD, 52, true);
+    if (nav.on) {
+      line(`${Math.round(nav.dRuta)} m · ${mmss(nav.etaS)}`, '#ffffff', 56, true);
+      line(`Llega ${hhmm(nav.llegaH)}`);
+      line(nav.giro === 0 ? `↑ Recto ${Math.round(nav.giroM)} m` : `${nav.giro < 0 ? '↰ Izq.' : '↱ Der.'} en ${Math.round(nav.giroM)} m`);
+      const margin = nav.o2Vuelta > 0.05 ? 100 * (nav.o2Llega / nav.o2Vuelta - 1) : Infinity;
+      const color = nav.o2Llega <= 0 ? LEVEL_COLOR.rojo : margin > 30 ? LEVEL_COLOR.ok : margin > 15 ? LEVEL_COLOR.ambar : LEVEL_COLOR.rojo;
+      line(`O₂ ${fmt(Math.max(0, nav.o2Llega))} L`, color, 52, true);
+      line(`Regreso ${fmt(nav.o2Vuelta)} L`);
+    } else line('Elige un destino en la laptop');
+    if (nav.spe) line('☢ Regresa al hábitat', LEVEL_COLOR.rojo, 48, true);
+    else if (nav.polvo > 0.15) line('Polvo · poca visibilidad', LEVEL_COLOR.ambar);
+    else if (Math.abs(nav.pendPct) > 12) line(`${nav.pendPct > 0 ? 'Subida' : 'Bajada'} ${Math.round(Math.abs(nav.pendPct))} %`, LEVEL_COLOR.ambar);
+    return;
+  }
   if (!nav.on) {
     line('⌂ EN EL HÁBITAT', CYAN, 36, true);
     line('marcá un destino en el mapa', '#d8e6f2', 28);

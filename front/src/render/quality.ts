@@ -1,6 +1,7 @@
 // Quality tiers. The phone renders the scene twice (stereo), so it gets the
 // light tier; the laptop gets the full one. `?q=low|medium|high` overrides it.
 export type Tier = 'low' | 'medium' | 'high';
+import { MOBILE_VR } from '../vr/mobileVR';
 
 const params = new URLSearchParams(typeof location === 'undefined' ? '' : location.search);
 
@@ -103,6 +104,10 @@ const TIERS = {
 };
 
 export const Q = { ...TIERS[tier] };
+// Only phone/tablet headset sessions; all desktop tiers retain their values.
+if (MOBILE_VR && !params.has('q')) Object.assign(Q, {
+  clutter: 600, farRings: 88, farSegs: 160, shadowMap: 512,
+});
 // Fine overrides for testing, e.g. ?post=none&clutter=0&shadow=1024
 const post = params.get('post');
 if (post === 'none' || post === 'basic' || post === 'full') Q.post = post;

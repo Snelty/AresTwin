@@ -258,7 +258,7 @@ export function SpectatorView() {
     rt.stormIntensity = v;
     setEnvUi((e) => ({ ...e, storm: v }));
   };
-  const [hud, setHud] = useState({ storm: 0, connected: false, vr: false, tilt: false, walking: false, fps: 60, scale: 1, ping: NaN, msg: '', dev: 0, goal: '', dist: 0, litres: 0, recalcs: 0, drone: 'docked', head: 0, headAge: 0 });
+  const [hud, setHud] = useState({ storm: 0, connected: false, vr: false, tilt: false, walking: false, fps: 60, scale: 1, ping: NaN, dev: 0, goal: '', dist: 0, litres: 0, recalcs: 0, drone: 'docked', head: 0, headAge: 0 });
   const scanned = useSimStore((s) => s.canyonScanned);
   // Free walk only: in mission mode the optimizer replans, not the view.
   useDynamicRoute(status !== 'loading' && !missionActive());
@@ -319,7 +319,6 @@ export function SpectatorView() {
         fps: governorState.fps,
         scale: governorState.dpr,
         ping: await ping(),
-        msg: vr.message,
         dev: vr.lastDeviation,
         goal: g ? (g.code === 'A' ? 'Hábitat (A)' : `${g.code} · ${siteName(g.code)}`) : '—',
         dist: g ? Math.hypot(g.x - vr.x, g.z - vr.z) : 0,
@@ -427,7 +426,6 @@ export function SpectatorView() {
             {thirdPerson ? '👁 3ª persona' : '👁 1ª persona'}
           </button>
         </div>
-        {hud.msg && <div className="glass hidden lg:block pointer-events-none px-3 py-2 text-[12px] text-emerald-200/90 leading-snug max-w-[440px]">{hud.msg}</div>}
       </div>
 
       {/* Side menu: icon tabs + the open tab. Folds away with M or ☰. */}
@@ -488,7 +486,6 @@ export function SpectatorView() {
                       Terreno real 480 m · {SITES.length} sitios CRISM desde {SITES[0].source === 'backend' ? 'el backend' : 'terreno/sitios.json'}
                     </div>
                   )}
-                  <div className="text-emerald-200/90 lg:hidden">{hud.msg}</div>
                 </div>
               </>
             )}

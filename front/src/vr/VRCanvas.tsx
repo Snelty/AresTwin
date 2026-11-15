@@ -31,6 +31,8 @@ import { applyNav } from '../nav/nav';
 import { setHazardsFromNet } from '../store/simEngine';
 import { useSimStore } from '../store/useSimStore';
 import { layerState, setLayer, type CapaId } from '../lib/layers';
+import { MOBILE_VR } from './mobileVR';
+import './mobileVR.css';
 
 const net = { state: null as SyncState | null, routeId: -1, hazardsKey: '', avisoId: 0, pose: null as PoseNet | null, poseAt: 0, rtt: NaN };
 /** Longest the phone extrapolates a pose (s): beyond it, a stalled laptop must not drift you away. */
@@ -46,7 +48,7 @@ const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 type Mode = 'sensor' | 'gravity' | 'none';
 
 /** Renders both eyes side by side and takes over R3F's default render (priority 1). */
-function StereoRenderer({ enabled }: { enabled: boolean }) {
+function StereoRenderer({ enabled, mobile = false }: { enabled: boolean; mobile?: boolean }) {
   const { gl, scene, camera, size } = useThree();
   const effect = useMemo(() => new StereoEffect(gl), [gl]);
   useEffect(() => {
@@ -60,8 +62,12 @@ function StereoRenderer({ enabled }: { enabled: boolean }) {
       gl.shadowMap.autoUpdate = true;
     };
   }, [gl]);
-  useFrame(() => {
-    gl.shadowMap.needsUpdate = true;
+  const shadowAt = useRef(-Infinity);
+  useFrame((state) => {
+    if (!mobile || state.clock.elapsedTime - shadowAt.current >= 1 / 20) {
+      gl.shadowMap.needsUpdate = true;
+      shadowAt.current = state.clock.elapsedTime;
+    }
     if (enabled) effect.render(scene, camera);
     else gl.render(scene, camera);
   }, 1);
@@ -336,8 +342,8 @@ export function VRCanvas() {
 
   return (
     // HTML labels are drawn for one camera only: hide them in the split-screen headset.
-    <div className={`fixed inset-0 bg-black select-none ${started && stereo ? 'vr-stereo' : ''}`} onClick={onTap}>
-      <Canvas
+    <div className={`fixed inset-0 bg-black select-none ${MOBILE_VR ? 'mobile-vr' : ''} ${started && stereo ? 'vr-stereo' : ''}`} onClick={onTap}>
+      {(!MOBILE_VR || started) && <Canvas
         shadows="percentage"
         dpr={[1, Q.dprMax]}
         gl={{ antialias: Q.antialias, powerPreference: 'high-performance', stencil: false, toneMapping: { agx: THREE.AgXToneMapping, aces: THREE.ACESFilmicToneMapping, neutral: THREE.NeutralToneMapping }[toneMap], toneMappingExposure: 4 }}
@@ -346,17 +352,17 @@ export function VRCanvas() {
         <SharedWorld />
         {started && <HeadRig mode={mode} recenter={recenter} />}
         {/* Suit holograms on the visor (one per eye in stereo) and the lens layer. */}
-        {started && <VisorHud stereo={stereo} />}
-        {started && <JarvisOverlay stereo={stereo} />}
-        {started && <NavPanel stereo={stereo} />}
+        {started && <VisorHud stereo={stereo} mobile={MOBILE_VR} />}
+        {started && <JarvisOverlay stereo={stereo} mobile={MOBILE_VR} />}
+        {started && <NavPanel stereo={stereo} mobile={MOBILE_VR} />}
         {/* Your own body: look down and you see the suit, the boots and your shadow. */}
         <SuitModel firstPerson />
-        <Governor target={38} min={0.7} />
-        <StereoRenderer enabled={started && stereo} />
-      </Canvas>
+        <Governor target={MOBILE_VR ? 50 : 38} min={MOBILE_VR ? 0.9 : 0.7} />
+        <StereoRenderer enabled={started && stereo} mobile={MOBILE_VR} />
+      </Canvas>}
 
       {!started && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/75 text-center px-6">
+        <div className="vr-entry absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/75 text-center px-6">
           <div className="font-display text-2xl tracking-[0.25em] text-cyan-200">ARES-TWIN · CASCO</div>
           <p className="text-sm text-slate-300 max-w-md">
             Poné el celular en horizontal dentro del Cardboard. Al girar la cabeza gira la vista, como una brújula: mirar al norte real es mirar al norte en Marte.
@@ -375,20 +381,22 @@ export function VRCanvas() {
       )}
 
       {started && (
-        <div className="absolute top-1 inset-x-0 flex justify-around text-[10px] font-mono text-slate-200/85 pointer-events-none">
+        <div className={`vr-status absolute top-1 inset-x-0 flex justify-around text-[10px] font-mono text-slate-200/85 pointer-events-none ${MOBILE_VR && stereo ? 'mobile-vr-stereo-status' : ''}`}>
           {(stereo ? [0, 1] : [0]).map((i) => (
             <span key={i}>
+              {MOBILE_VR ? <>{hud.connected ? (hud.host ? 'Laptop ✓' : 'Esperando laptop') : 'Sin conexión'} · {hud.heading.toFixed(0)}° {card(hud.heading)}{hud.walking ? ' · Avanzando' : ''}</> : <>
               {hud.connected ? (hud.host ? 'laptop ✓' : 'esperando laptop') : 'sin servidor'} · {Number.isFinite(hud.ping) ? `${hud.ping.toFixed(0)} ms` : '—'}{hud.poseRelay ? ' · pose directa' : ''} · rumbo{' '}
               {hud.heading.toFixed(0)}° {card(hud.heading)}
               {sensor ? (hud.source === 'relative' || hud.source === 'generic-relative' ? ' · giroscopio (sin brújula)' : ' · brújula') : mode === 'gravity' ? (mag.samples ? ' · acelerómetro + brújula' : ` · inclinar para girar${live.turning ? (live.turning > 0 ? ' ▶' : ' ◀') : ''}`) : ' · sin sensor'}
               {' '}· lecturas {hud.samples} · enviados {hud.sent}
               {hud.walking && <b className="text-emerald-300"> · ▼ avanzando {hud.gazeSpeed.toFixed(1)} m/s</b>}
+              </>}
             </span>
           ))}
         </div>
       )}
       {started && problem && (
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 max-w-[90vw] rounded border border-amber-400/60 bg-black/80 px-3 py-2 text-[12px] text-amber-100 text-center">
+        <div className="vr-problem absolute bottom-3 left-1/2 -translate-x-1/2 max-w-[90vw] rounded border border-amber-400/60 bg-black/80 px-3 py-2 text-[12px] text-amber-100 text-center">
           {problem} {mode === 'none' ? 'Mientras tanto podés arrastrar para mirar. ' : ''}
           <a href="?role=sensor-test" className="underline text-cyan-200 pointer-events-auto">Diagnóstico de sensores</a>
         </div>

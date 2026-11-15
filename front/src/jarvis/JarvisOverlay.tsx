@@ -125,7 +125,7 @@ function drawLabel(g: CanvasRenderingContext2D, w: number, h: number, det: Detec
   }
 }
 
-function Slot({ i }: { i: number }) {
+function Slot({ i, mobile = false }: { i: number; mobile?: boolean }) {
   const frame = useRef<THREE.Sprite>(null);
   const label = useRef<THREE.Sprite>(null);
   const lab = useMemo(() => {
@@ -163,7 +163,7 @@ function Slot({ i }: { i: number }) {
     f.position.set(o.x, cy, o.z);
     f.scale.set(fs, fs, 1);
     // Label of constant angular size (~11° wide) above the frame.
-    const lw = Math.max(1.3, d * 0.2);
+    const lw = Math.max(1.3, d * (mobile ? 0.28 : 0.2));
     const lh = (lw * lab.c.height) / lab.c.width;
     l.position.set(o.x, cy + fs / 2 + lh / 2 + 0.05 * lw, o.z);
     l.scale.set(lw, lh, 1);
@@ -191,9 +191,24 @@ function Slot({ i }: { i: number }) {
 const wrap = (a: number) => ((a % 360) + 360) % 360;
 const bearing = (x: number, z: number) => wrap((Math.atan2(x - vr.x, -(z - vr.z)) * 180) / Math.PI);
 
-function drawTape(g: CanvasRenderingContext2D, w: number, h: number) {
+function drawTape(g: CanvasRenderingContext2D, w: number, h: number, mobile = false) {
   g.clearRect(0, 0, w, h);
   const head = wrap((suitState.lookYaw * 180) / Math.PI);
+  if (mobile) {
+    g.fillStyle = 'rgba(4, 10, 20, 0.3)';
+    g.fillRect(0, 0, w, h);
+    g.save();
+    g.shadowColor = 'rgba(0, 0, 0, 0.9)'; g.shadowBlur = 4; g.shadowOffsetY = 2;
+    g.fillStyle = '#ffffff'; g.textAlign = 'center';
+    g.font = `bold 80px ${FONT}`;
+    g.fillText(`${Math.round(head)}°`, w / 2, 100);
+    g.font = `bold 52px ${FONT}`;
+    g.fillStyle = '#a3fff2';
+    g.fillText(`${jarvis.vistos} visibles · ★ ${jarvis.hallazgos.length}`, w / 2, 190);
+    g.restore();
+    g.textAlign = 'left';
+    return;
+  }
   const span = 120; // degrees across the tape
   const xOf = (deg: number) => w / 2 + ((((deg - head + 540) % 360) - 180) / span) * w;
   g.fillStyle = 'rgba(4, 10, 20, 0.45)';
@@ -250,7 +265,7 @@ function drawTape(g: CanvasRenderingContext2D, w: number, h: number) {
   g.textAlign = 'left';
 }
 
-export function JarvisOverlay({ anchor = 'visor', stereo = false }: { anchor?: 'visor' | 'world'; stereo?: boolean }) {
+export function JarvisOverlay({ anchor = 'visor', stereo = false, mobile = false }: { anchor?: 'visor' | 'world'; stereo?: boolean; mobile?: boolean }) {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const tape = useRef<THREE.Mesh>(null);
   const tp = useMemo(() => {
@@ -277,9 +292,9 @@ export function JarvisOverlay({ anchor = 'visor', stereo = false }: { anchor?: '
     m.visible = jarvis.on && anchor === 'visor';
     if (!m.visible) return;
     const t = state.clock.elapsedTime;
-    if (t - tp.at > 1 / 20) {
+    if (t - tp.at > 1 / (mobile ? 10 : 20)) {
       tp.at = t;
-      drawTape(tp.g, tp.c.width, tp.c.height);
+      drawTape(tp.g, tp.c.width, tp.c.height, mobile);
       tp.t.needsUpdate = true;
     }
     const halfH = D * Math.tan(((camera.fov ?? 70) * Math.PI) / 360);
@@ -298,10 +313,10 @@ export function JarvisOverlay({ anchor = 'visor', stereo = false }: { anchor?: '
       <mesh ref={tape} material={tapeMat} renderOrder={1001} frustumCulled={false} visible={false}>
         <planeGeometry args={[1, 1]} />
       </mesh>
-      {anchor === 'visor' && <FichaPanel stereo={stereo} />}
+      {anchor === 'visor' && <FichaPanel stereo={stereo} mobile={mobile} />}
       {anchor === 'visor' && <Reticle />}
-      {Array.from({ length: SLOTS }).map((_, i) => (
-        <Slot key={i} i={i} />
+      {Array.from({ length: mobile ? 4 : SLOTS }).map((_, i) => (
+        <Slot key={i} i={i} mobile={mobile} />
       ))}
     </>
   );

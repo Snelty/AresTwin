@@ -24,9 +24,9 @@ const D = 0.6;
 const fmt = (v: number, d = 1) => v.toFixed(d).replace('.', ',');
 const pct = (v: number) => `${Math.round(v * 100)} %`;
 
-function drawFicha(g: CanvasRenderingContext2D, det: Detection | null) {
+function drawFicha(g: CanvasRenderingContext2D, det: Detection | null, mobile = false) {
   g.clearRect(0, 0, W, H);
-  g.fillStyle = 'rgba(6, 14, 26, 0.88)';
+  g.fillStyle = mobile ? 'rgba(6, 14, 26, 0.38)' : 'rgba(6, 14, 26, 0.88)';
   g.strokeStyle = CYAN;
   g.lineWidth = 3;
   g.beginPath();
@@ -35,13 +35,20 @@ function drawFicha(g: CanvasRenderingContext2D, det: Detection | null) {
   g.stroke();
   let y = 52;
   const line = (t: string, col = '#d8e6f2', size = 28, bold = false, gap = 12) => {
-    const s = Math.max(30, Math.round(size * 1.15));
+    if (mobile) {
+      g.save();
+      g.shadowColor = 'rgba(0, 0, 0, 0.9)';
+      g.shadowBlur = 4;
+      g.shadowOffsetY = 2;
+    }
+    const s = Math.max(mobile ? 40 : 30, Math.round(size * (mobile ? 1.3 : 1.15)));
     g.font = `${bold ? '700' : '600'} ${s}px ${FONT}`;
     g.fillStyle = col;
     for (const row of wrapCanvasText(g, t, W - 48)) {
       g.fillText(row, 24, y);
       y += s + gap;
     }
+    if (mobile) g.restore();
   };
   g.textAlign = 'left';
   g.fillStyle = CYAN;
@@ -54,6 +61,11 @@ function drawFicha(g: CanvasRenderingContext2D, det: Detection | null) {
   y += 46;
 
   if (!det) {
+    if (mobile) {
+      line('Apunta el centro a una roca o sitio.', '#ffffff');
+      line('Acércate para analizar.', CYAN);
+      return;
+    }
     line('Apuntá la retícula a', '#d8e6f2', 30);
     line('una roca u objeto.', '#d8e6f2', 30);
     y += 10;
@@ -64,6 +76,26 @@ function drawFicha(g: CanvasRenderingContext2D, det: Detection | null) {
   }
   const o = det.o;
   const m = det.m;
+  if (mobile) {
+    const site = o.clase === 'sitio' ? SITES.find(s => s.code === o.id) : null;
+    line(site ? `${o.id} · ${site.mineral}` : det.ident?.nombre ?? det.idAnomalia?.nombre ?? CLASE_NOMBRE[o.clase], '#ffffff', 36, true);
+    line(`A ${Math.round(det.d)} m`, CYAN, 36, true);
+    if (site) {
+      line(`Ciencia ${site.value}/10`);
+      line(`Muestra ${fmt(site.massKg)} kg`);
+      line(`Perforar ${site.drillMin} min`);
+      line(`${fmt(site.window[0], 0)}–${fmt(site.window[1], 0)} h solar`);
+    } else if (det.ident) line(`Confianza ${pct(det.ident.conf)}`);
+    else if (o.clase === 'peligro') line('PELIGRO · evita la zona', LEVEL_COLOR.rojo, 34, true);
+    line(m.estado === 'nuevo' ? 'Nuevo en el catálogo' : m.estado === 'similar' ? 'Similar al catálogo' : 'Objeto catalogado', CYAN);
+    if (REAL) {
+      const top = crismAt(o.x, o.z)?.find(q => q.v > 0.05);
+      line(top ? `CRISM: ${MINERALES[top.mineral].nombre}` : 'CRISM: sin señal destacada');
+      if (!crismListo()) cargarCrism();
+    }
+    if (m.interes >= 0.5) line('★ Documentar', STAR, 34, true);
+    return;
+  }
 
   // What it is, and how sure.
   if (det.ident) {
@@ -127,7 +159,7 @@ function drawFicha(g: CanvasRenderingContext2D, det: Detection | null) {
   else if (det.ident) line('acercate para identificarla', LEVEL_COLOR.ambar, 24);
 }
 
-export function FichaPanel({ stereo = false }: { stereo?: boolean }) {
+export function FichaPanel({ stereo = false, mobile = false }: { stereo?: boolean; mobile?: boolean }) {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const mesh = useRef<THREE.Mesh>(null);
   const p = useMemo(() => {
@@ -157,15 +189,15 @@ export function FichaPanel({ stereo = false }: { stereo?: boolean }) {
     const f = jarvis.foco;
     // Redraw when the target, its numbers or the database state change (at most 6 Hz).
     const key = f ? `${f.o.id}|${Math.round(f.d)}|${f.m.estado}|${Math.round((f.ident?.conf ?? f.m.similitud) * 20)}|${bd.estado}|${bd.rev}|${crismListo()}` : `none|${bd.estado}`;
-    if (key !== p.key && t - p.at > 0.16) {
+    if (key !== p.key && t - p.at > (mobile ? 0.25 : 0.16)) {
       p.key = key;
       p.at = t;
-      drawFicha(p.g, f);
+      drawFicha(p.g, f, mobile);
       p.t.needsUpdate = true;
     }
     const halfH = D * Math.tan(((camera.fov ?? 70) * Math.PI) / 360);
     const halfW = halfH * (camera.aspect / (stereo ? 2 : 1));
-    const ph = Math.min(halfH * 1.12, halfW * 0.62 * (H / W));
+    const ph = Math.min(halfH * (mobile ? 1.18 : 1.12), halfW * (mobile ? 0.8 : 0.62) * (H / W));
     const pw = ph * (W / H);
     me.position.copy(camera.position);
     me.quaternion.copy(camera.quaternion);
