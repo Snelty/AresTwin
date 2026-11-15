@@ -23,9 +23,6 @@ import { currentGoal } from '../../vr/vrEngine';
 import { jarvis } from '../../jarvis/detector';
 import { missionView } from '../../mission/mission';
 
-// Match the number of object labels actually drawn by each independent view.
-const objectLabelLimit = typeof location !== 'undefined' && new URLSearchParams(location.search).get('role') === 'vr' ? 2 : 8;
-
 const HOVER = 2.7; // metres above the ground (above a suited astronaut's helmet)
 
 const holoVert = /* glsl */ `
@@ -206,8 +203,8 @@ function Hologram({ site, status, order, version }: { site: ScienceSite; status:
     if (sprite.current) {
       sprite.current.scale.set(3.8 * k, 1.14 * k, 1);
       sprite.current.position.y = HOVER + 1.25 + 0.7 * k;
-      // JARVIS already labels detected sites: avoid two cards over the same spot.
-      sprite.current.visible = !jarvis.on || !jarvis.detections.slice(0, objectLabelLimit).some(det => det.o.id === site.code);
+      // JARVIS owns gaze-dependent descriptions; mineral beacons stay text-free.
+      sprite.current.visible = !jarvis.on;
     }
     if (tall.current) tall.current.visible = d > 18; // no pillar in your face when you are on the spot
   });

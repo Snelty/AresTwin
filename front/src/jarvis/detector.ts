@@ -186,7 +186,13 @@ export function stepDetector(camera: THREE.Camera, dt: number) {
       });
     }
   }
-  out.sort((a, b) => b.prioridad - a.prioridad);
+  // Always reserve a visible marker for the object under the reticle, even
+  // when other detections have a higher catalogue priority.
+  out.sort((a, b) => {
+    if (a === foco) return b === foco ? 0 : -1;
+    if (b === foco) return 1;
+    return b.prioridad - a.prioridad;
+  });
   jarvis.foco = foco;
   jarvis.vistos = out.length;
   jarvis.detections = out.slice(0, MAX_SHOWN);
