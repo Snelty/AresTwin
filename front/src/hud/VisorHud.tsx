@@ -151,6 +151,26 @@ function drawO2(g: CanvasRenderingContext2D, w: number, h: number) {
   g.fillText(Number.isFinite(bio.R) ? `volver: ${fmt(bio.R)} L · mín ${fmt(o2Minimo())} L` : 'sin camino de vuelta', x, 232);
 }
 
+/** Mobile readouts trade the small ECG and metadata for larger essential values. */
+function drawMobileVitals(oxygen: CanvasRenderingContext2D, pulse: CanvasRenderingContext2D) {
+  const oxygenColor = LEVEL_COLOR[level()];
+  const pulseColor = bio.FC > 170 ? LEVEL_COLOR.rojo : bio.FC > 150 ? LEVEL_COLOR.ambar : CYAN;
+  const draw = (g: CanvasRenderingContext2D, color: string, title: string, value: string, detail: string, footer: string) => {
+    frame(g, 720, 256, color);
+    g.save();
+    g.shadowColor = 'rgba(0, 0, 0, 0.9)'; g.shadowBlur = 4; g.shadowOffsetY = 2;
+    g.textAlign = 'left'; g.fillStyle = color; g.font = `bold 44px ${FONT}`;
+    g.fillText(title, 24, 52);
+    g.fillStyle = '#ffffff'; g.font = `bold 82px ${FONT}`; g.fillText(value, 24, 140);
+    g.font = `bold 40px ${FONT}`; g.fillText(detail, 24, 192);
+    g.fillStyle = color; g.font = `bold 36px ${FONT}`; g.fillText(footer, 24, 238);
+    g.restore();
+  };
+  draw(oxygen, oxygenColor, 'OXÍGENO', `${fmt(bio.O2)} L`, `≈ ${Math.floor(minutesLeft())} min`,
+    Number.isFinite(bio.R) ? `Regreso ${fmt(bio.R)} L` : 'SIN RUTA DE REGRESO');
+  draw(pulse, pulseColor, 'PULSO', `${Math.round(bio.FC)} lpm`, `VO₂ ${fmt(bio.VO2, 2)} L/min`, `${Math.round(bio.M)} W`);
+}
+
 function drawBio(g: CanvasRenderingContext2D, w: number, h: number, trace: Float32Array, head: number) {
   const fc = bio.FC;
   const col = fc > 170 ? LEVEL_COLOR.rojo : fc > 150 ? LEVEL_COLOR.ambar : CYAN;
@@ -293,7 +313,7 @@ export function updateCrisis(dt: number) {
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
-export function VisorHud({ anchor = 'visor', stereo = false, fxStrength = 1 }: { anchor?: 'visor' | 'body'; stereo?: boolean; fxStrength?: number }) {
+export function VisorHud({ anchor = 'visor', stereo = false, fxStrength = 1, mobile = false }: { anchor?: 'visor' | 'body'; stereo?: boolean; fxStrength?: number; mobile?: boolean }) {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const root = useRef<THREE.Group>(null);
   const left = useRef<THREE.Mesh>(null);
@@ -347,10 +367,14 @@ export function VisorHud({ anchor = 'visor', stereo = false, fxStrength = 1 }: {
       s.head = (s.head + 1) % ECG_N;
     }
     // Redraw the panels at 15 Hz.
-    if (t - s.draw > 1 / 15) {
+    if (t - s.draw > 1 / (mobile ? 8 : 15)) {
       s.draw = t;
-      drawO2(o2.g, o2.c.width, o2.c.height);
-      drawBio(bp.g, bp.c.width, bp.c.height, trace, s.head);
+      if (mobile) {
+        drawMobileVitals(o2.g, bp.g);
+      } else {
+        drawO2(o2.g, o2.c.width, o2.c.height);
+        drawBio(bp.g, bp.c.width, bp.c.height, trace, s.head);
+      }
       s.alert = drawAlert(al.g, al.c.width, al.c.height);
       o2.tex.needsUpdate = bp.tex.needsUpdate = al.tex.needsUpdate = true;
     }
@@ -372,7 +396,7 @@ export function VisorHud({ anchor = 'visor', stereo = false, fxStrength = 1 }: {
       const halfH = D * Math.tan(((camera.fov ?? 70) * Math.PI) / 360);
       const halfW = halfH * (camera.aspect / (stereo ? 2 : 1));
       // Two panels side by side must fit in the eye's width (narrow in stereo or portrait).
-      const ph = Math.min(halfH * 0.36, (halfW * 0.88) / 2.8125);
+      const ph = Math.min(halfH * (mobile ? 0.43 : 0.36), (halfW * (mobile ? 0.96 : 0.88)) / 2.8125);
       const pw = ph * 2.8125;
       left.current.scale.set(pw, ph, 1);
       right.current.scale.set(pw, ph, 1);

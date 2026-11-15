@@ -15,7 +15,7 @@ import { heightAt } from '../lib/terrain';
 const D = 0.6;
 
 /** onPick: the laptop picks a destination by clicking the map on the visor (first person). */
-export function NavPanel({ stereo = false, onPick }: { stereo?: boolean; onPick?: (x: number, z: number) => void }) {
+export function NavPanel({ stereo = false, onPick, mobile = false }: { stereo?: boolean; mobile?: boolean; onPick?: (x: number, z: number) => void }) {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const mesh = useRef<THREE.Mesh>(null);
   const p = useMemo(() => {
@@ -42,15 +42,15 @@ export function NavPanel({ stereo = false, onPick }: { stereo?: boolean; onPick?
     m.visible = jarvis.on;
     if (!m.visible) return;
     const t = state.clock.elapsedTime;
-    if (t - p.at > 0.1) {
+    if (t - p.at > (mobile ? 0.2 : 0.1)) {
       p.at = t;
-      drawNav(p.g, NAV_W, NAV_H);
+      drawNav(p.g, NAV_W, NAV_H, mobile);
       p.t.needsUpdate = true;
     }
     const halfH = D * Math.tan(((camera.fov ?? 70) * Math.PI) / 360);
     const halfW = halfH * (camera.aspect / (stereo ? 2 : 1));
     // Upper-right corner, under the heading tape and above the biometrics panel.
-    const ph = Math.min(halfH * 1.20, halfW * 0.58 * (NAV_H / NAV_W));
+    const ph = Math.min(halfH * (mobile ? 1.24 : 1.20), halfW * (mobile ? 0.8 : 0.58) * (NAV_H / NAV_W));
     const pw = ph * (NAV_W / NAV_H);
     m.position.copy(camera.position);
     m.quaternion.copy(camera.quaternion);

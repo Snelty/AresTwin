@@ -1,0 +1,10 @@
+.mobile-vr{touch-action:manipulation;overscroll-behavior:none}
+.mobile-vr .vr-entry{overflow-y:auto;padding: max(20px,env(safe-area-inset-top)) max(24px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(24px,env(safe-area-inset-left));gap:18px}
+.mobile-vr .vr-entry p{font-size:17px;line-height:1.5;color:#dbe7ef;max-width:38rem}
+.mobile-vr .vr-entry p:last-child{font-size:15px;color:#b4c6d4}
+.mobile-vr .vr-entry button{min-height:54px;font-size:21px;padding:14px 28px;touch-action:manipulation}
+.mobile-vr .vr-status{top:max(5px,env(safe-area-inset-top));font-size:13px;line-height:1.4;padding:0 max(8px,env(safe-area-inset-left));gap:8px}
+.mobile-vr .vr-status span{background:#07101b55;padding:4px 8px;border-radius:6px;text-align:center;text-shadow:0 1px 3px #000}
+.mobile-vr .mobile-vr-stereo-status{display:grid;grid-template-columns:1fr 1fr}
+.mobile-vr .vr-problem{font-size:16px;line-height:1.45;width:min(90vw,42rem);padding:14px;max-height:35dvh;overflow:auto;bottom:max(12px,env(safe-area-inset-bottom))}
+@media(orientation:landscape) and (max-height:500px){.mobile-vr .vr-entry{justify-content:flex-start;gap:10px;padding-top:14px;padding-bottom:14px}.mobile-vr .vr-entry .font-display{font-size:22px}.mobile-vr .vr-entry p{font-size:16px;line-height:1.35}.mobile-vr .vr-entry p:last-child{font-size:14px}}
