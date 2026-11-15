@@ -9,9 +9,10 @@ import { bio } from '../hud/bio';
 import { mission } from './mission';
 import { connectLive, dana, detenerSimulacion, jump, jumpToMarker, live, loadReplay, player, saludBackend, simularEnBackend } from './sources';
 import { displayTime } from './driver';
+import { VPS_SOLO } from '../lib/deployment';
 
 const params = new URLSearchParams(location.search);
-const MODO = params.get('modo');
+const MODO = VPS_SOLO && params.get('modo') === 'vivo' ? null : params.get('modo');
 if (MODO === 'mision') mission.modo = 'mision';
 if (MODO === 'vivo') mission.modo = 'vivo';
 
@@ -43,7 +44,7 @@ export function ModeLinks() {
       <span className="text-slate-400 mr-1">Fuente</span>
       <a href={href(null)} className={cls(cur === 'libre')}>Libre</a>
       <a href={href('mision')} className={cls(cur === 'mision')}>Misión registrada</a>
-      <a href={href('vivo')} className={cls(cur === 'vivo')}>Backend en vivo</a>
+      {!VPS_SOLO && <a href={href('vivo')} className={cls(cur === 'vivo')}>Backend en vivo</a>}
     </div>
   );
 }

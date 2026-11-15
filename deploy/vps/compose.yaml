@@ -1,0 +1,41 @@
+services:
+  frontend:
+    build:
+      context: ../..
+      dockerfile: deploy/vps/Dockerfile.frontend
+    restart: unless-stopped
+    environment:
+      ARES_SOLO: "1"
+    ports:
+      - "127.0.0.1:3100:3000"
+    volumes:
+      - ../../logs:/app/logs:ro
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+  backend:
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8100:8000"
+    volumes:
+      - backend_logs:/app/logs
+    environment:
+      ARES_TERRAIN_DIR: /app/terreno
+      ARES_LOGS_DIR: /app/logs
+      ARES_CORS_ORIGINS: https://nasa.monterito.dev,http://nasa.monterito.dev
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+volumes:
+  backend_logs:

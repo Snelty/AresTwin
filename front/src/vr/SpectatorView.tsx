@@ -50,6 +50,7 @@ import { RANGOS, mapa } from '../nav/drawNav';
 import { nav } from '../nav/nav';
 import { createRouteGazeState, stepRouteGaze } from './routeGaze';
 import { walkingSegmentClear } from '../lib/walking';
+import { VPS_SOLO } from '../lib/deployment';
 
 const keys = new Set<string>();
 /** Hands-free walking: look at the ground or along the suggested route. */
@@ -160,7 +161,7 @@ function HostLoop({ thirdPerson }: { thirdPerson: boolean }) {
 
     // 60 Hz position stream to the server (and on to the phone).
     const now = performance.now();
-    if (now - lastSend.current > 15 && socket.connected) {
+    if (!VPS_SOLO && now - lastSend.current > 15 && socket.connected) {
       lastSend.current = now;
       const sendNav = now - lastNav.current > 100;
       if (sendNav) lastNav.current = now;
@@ -316,11 +317,13 @@ export function SpectatorView() {
     const socket = connect('spectator-host');
     bindJarvisSync(socket);
     const handleVRCommand = (command: VRCommand, reply?: (result: VRCommandResult) => void) => {
+      if (VPS_SOLO) { reply?.({ ok: false, reason: 'invalid-command' }); return; }
       const result = executeVRCommand(command);
       reply?.(result);
     };
     socket.on('vr-command', handleVRCommand);
     socket.on('state', (s: SyncState) => {
+      if (VPS_SOLO) return;
       remote.vrConnected = s.vr;
       if (s.vr && s.rotation && !remote.fresh) {
         remote.q.set(s.rotation[0], s.rotation[1], s.rotation[2], s.rotation[3]);
@@ -330,6 +333,7 @@ export function SpectatorView() {
     });
     // Head rotation relayed the instant the phone sends it (lower latency than the 60 Hz tick).
     socket.on('rotation', (q: number[]) => {
+      if (VPS_SOLO) return;
       remote.q.set(q[0], q[1], q[2], q[3]);
       remote.tiltOnly = q[4] === 1;
       remote.has = true;
@@ -337,7 +341,7 @@ export function SpectatorView() {
       remote.fresh = true;
       remote.last = performance.now();
     });
-    const push = () => socket.connected && socket.emit('world', worldSnapshot());
+    const push = () => !VPS_SOLO && socket.connected && socket.emit('world', worldSnapshot());
     setWorldListener(push);
     socket.on('connect', () => setTimeout(push, 200));
     socket.on('presence', () => setTimeout(push, 100));
@@ -373,7 +377,7 @@ export function SpectatorView() {
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       const command = vrCommandForKey(e);
-      if (remote.vrConnected && command) {
+      if ((VPS_SOLO || remote.vrConnected) && command) {
         e.preventDefault();
         executeVRCommand(command);
         return;
@@ -510,7 +514,7 @@ export function SpectatorView() {
                 </div>
                 <div className="text-[12px] text-slate-400 space-y-1">
                   <div>
-                    Rumbo del casco <b className="text-cyan-200 font-mono">{hud.head.toFixed(0)}°</b>{' '}
+                    {VPS_SOLO ? 'Dirección' : 'Rumbo del casco'} <b className="text-cyan-200 font-mono">{hud.head.toFixed(0)}°</b>{' '}
                     {hud.vr ? hud.headAge < 500 ? <span className="text-emerald-300">· en vivo</span> : <span className="text-amber-300">· sin datos del celular</span> : <span>· mouse / Q-E</span>}
                   </div>
                   {!missionActive() && (
@@ -532,7 +536,7 @@ export function SpectatorView() {
             {tab === 'mision' && (
               <>
                 <ModeLinks />
-                {missionActive() ? <MissionPanel /> : <div className="text-[12px] text-slate-400 leading-snug">Modo libre: caminás vos y A* replanifica. Elegí <b>Misión</b> para reproducir el registro del guion, o <b>Vivo</b> para conectarte al backend.</div>}
+                {missionActive() ? <MissionPanel /> : <div className="text-[12px] text-slate-400 leading-snug">Modo libre: caminás vos y A* replanifica. Elegí <b>Misión</b> para reproducir el registro del guion{!VPS_SOLO && <>, o <b>Vivo</b> para conectarte al backend</>}.</div>}
               </>
             )}
 
@@ -561,7 +565,7 @@ export function SpectatorView() {
                       </Fragment>
                     ))}
                   </div>
-                  {!hud.vr && <div className="text-[11px] text-slate-500">Sin casco: arrastrá el mouse o usá Q / E para girar.</div>}
+                  {!hud.vr && <div className="text-[11px] text-slate-500">{!VPS_SOLO && 'Sin casco: '}arrastrá el mouse o usá Q / E para girar.</div>}
                   {hud.vr && hud.tilt && <div className="text-[11px] text-amber-300">El celular no tiene giroscopio: girá con Q / E o el mouse.</div>}
                 </Section>
               </>
@@ -638,9 +642,9 @@ const TABS: { id: Tab; icon: string; short: string; label: string; real?: boolea
 ];
 
 const KEYS: [string, string][] = [
-  ['W A S D', 'caminar hacia donde mira el casco'],
+  ['W A S D', VPS_SOLO ? 'caminar hacia donde mirás' : 'caminar hacia donde mira el casco'],
   ['Shift', 'más rápido'],
-  ['Q / E', 'girar (sin casco)'],
+  ['Q / E', VPS_SOLO ? 'girar' : 'girar (sin casco)'],
   ['V', '1ª / 3ª persona'],
   ['J', 'vista JARVIS / normal'],
   ['M', 'mostrar u ocultar el menú'],

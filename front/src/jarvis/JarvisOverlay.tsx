@@ -8,7 +8,8 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { CLASE_NOMBRE, objectCenterY } from './catalog';
+import { objectCenterY } from './catalog';
+import { objectDescription } from './objectDescription';
 import { wrapCanvasText } from '../lib/canvasText';
 import { jarvis, stepDetector, type Detection } from './detector';
 import { suitState } from '../vr/suit/state';
@@ -19,6 +20,7 @@ import { missionView } from '../mission/mission';
 import { LEVEL_COLOR } from '../hud/bio';
 import { FichaPanel } from './FichaPanel';
 import { HUD_FEATURES } from '../hud/features';
+import { VPS_SOLO } from '../lib/deployment';
 
 /** Aiming reticle at the centre of the view (the analysis card reads what is under it). */
 function Reticle() {
@@ -47,7 +49,6 @@ const COLORS = { catalogado: '#00f3ff', similar: '#e6edf5', nuevo: '#ff4fd8', pe
 const STAR = '#ffd84d';
 const SLOTS = 8;
 const D = 0.6;
-const fmt = (v: number, d = 1) => v.toFixed(d).replace('.', ',');
 
 type Style = keyof typeof COLORS;
 const styleOf = (det: Detection): Style => (det.o.clase === 'peligro' ? 'peligro' : det.o.clase === 'sitio' || det.o.clase === 'habitat' ? 'sitio' : det.m.estado);
@@ -85,7 +86,7 @@ function frameTexture(s: Style) {
   return t;
 }
 
-function drawLabel(g: CanvasRenderingContext2D, w: number, h: number, det: Detection, desktop = false) {
+function drawLabel(g: CanvasRenderingContext2D, w: number, h: number, det: Detection, desktop = false, largeMobile = false) {
   const s = styleOf(det);
   const col = COLORS[s];
   g.clearRect(0, 0, w, h);
@@ -96,51 +97,40 @@ function drawLabel(g: CanvasRenderingContext2D, w: number, h: number, det: Detec
   g.roundRect(4, 4, w - 8, h - 8, 16);
   g.fill();
   g.stroke();
-  const o = det.o;
-  const tam = o.clase === 'roca' || o.clase === 'bloque' || o.clase === 'meteorito' || o.clase === 'veta' || o.clase === 'concrecion' ? ` · ${fmt(det.rMedido * 2)} m` : '';
-  const nombre = det.ident ? `${det.ident.nombre}${!det.ident.generico && det.ident.conf < 0.6 ? '?' : ''}` : det.idAnomalia ? det.idAnomalia.nombre : CLASE_NOMBRE[o.clase];
-  const titulo = o.clase === 'sitio' ? `${o.id} · ${o.nota ?? 'sitio'}` : o.clase === 'peligro' ? `PELIGRO ${o.id}` : `${nombre}${tam}`;
+  const description = objectDescription(det);
   g.fillStyle = col;
   g.shadowColor = '#000'; g.shadowBlur = 3;
-  g.font = `bold ${desktop ? 60 : 52}px ${FONT}`;
-  const rows = wrapCanvasText(g, titulo, w - 44);
+  g.font = `bold ${largeMobile ? 64 : desktop ? 60 : 52}px ${FONT}`;
+  const rows = wrapCanvasText(g, description.title, w - 44);
   if (rows.length > 2) {
     let last = rows[1];
     while (last && g.measureText(last + '…').width > w - 44) last = last.slice(0, -1);
     rows[1] = last + '…';
   }
-  rows.slice(0, 2).forEach((row, i) => g.fillText(row, 22, (desktop ? 66 : 56) + i * (desktop ? 66 : 54)));
+  rows.slice(0, 2).forEach((row, i) => g.fillText(row, 22, (largeMobile ? 72 : desktop ? 66 : 56) + i * (largeMobile ? 70 : desktop ? 66 : 54)));
   g.fillStyle = '#ffffff';
-  g.font = `bold ${desktop ? 48 : 42}px ${FONT}`;
-  const m = det.m;
-  const linea2 =
-    o.clase === 'peligro'
-      ? 'PELIGRO'
-      : m.estado === 'catalogado'
-        ? 'Catalogado'
-        : m.estado === 'similar'
-          ? 'Similar'
-          : 'Nuevo';
-  g.fillText(`${Math.round(det.d)} m · ${linea2}`, 22, desktop ? 200 : 166);
-  if (m.interes >= 0.5) {
+  g.font = `bold ${largeMobile ? 52 : desktop ? 48 : 42}px ${FONT}`;
+  g.fillText(description.detail, 22, largeMobile ? 212 : desktop ? 200 : 166);
+  if (description.document) {
     g.fillStyle = STAR;
-    g.font = `bold ${desktop ? 38 : 30}px ${FONT}`;
-    g.fillText('★ Documentar', 22, desktop ? 252 : 208);
+    g.font = `bold ${largeMobile ? 44 : desktop ? 38 : 30}px ${FONT}`;
+    g.fillText('★ Documentar', 22, largeMobile ? 272 : desktop ? 252 : 208);
   }
 }
 
 function Slot({ i, mobile = false, desktop = false }: { i: number; mobile?: boolean; desktop?: boolean }) {
+  const largeMobile = VPS_SOLO && mobile;
   const frame = useRef<THREE.Sprite>(null);
   const label = useRef<THREE.Sprite>(null);
   const focusAnimation = useRef({ id: '', amount: 0 });
   const lab = useMemo(() => {
     const c = document.createElement('canvas');
     c.width = 720;
-    c.height = desktop ? 272 : 224;
+    c.height = largeMobile ? 288 : desktop ? 272 : 224;
     const t = new THREE.CanvasTexture(c);
     t.colorSpace = THREE.SRGBColorSpace;
     return { c, g: c.getContext('2d')!, t, key: '' };
-  }, [desktop]);
+  }, [desktop, largeMobile]);
   const frameMat = useMemo(() => new THREE.SpriteMaterial({ transparent: true, depthTest: false, depthWrite: false, toneMapped: false }), []);
   const labelMat = useMemo(() => new THREE.SpriteMaterial({ map: lab.t, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }), [lab]);
   useEffect(
@@ -159,7 +149,8 @@ function Slot({ i, mobile = false, desktop = false }: { i: number; mobile?: bool
     if (!f || !l) return;
     f.visible = !!det && jarvis.on;
     const focused = !!det && jarvis.foco?.o.id === det.o.id;
-    l.visible = !!det && jarvis.on && focused;
+    // VPS phones show crisp, fixed-size HTML text; retain the scene markers.
+    l.visible = !!det && jarvis.on && focused && !largeMobile;
     if (!det || !jarvis.on) { focusAnimation.current = { id: '', amount: 0 }; return; }
     const o = det.o;
     const cy = objectCenterY(o);
@@ -176,7 +167,11 @@ function Slot({ i, mobile = false, desktop = false }: { i: number; mobile?: bool
     f.position.set(o.x, cy, o.z);
     f.scale.set(fs, fs, 1);
     // PC descriptions get more screen space; headset labels keep their own scale.
-    const lw = Math.max(desktop ? 1.8 : 1.3, d * (desktop ? 0.42 : mobile ? 0.32 : 0.26));
+    // VPS phones keep a readable pixel size in portrait and landscape, even for distant rocks.
+    const camera = state.camera as THREE.PerspectiveCamera;
+    const lw = largeMobile
+      ? Math.min(200, state.size.width * 0.62) * (2 * d * Math.tan(camera.fov * Math.PI / 360)) / state.size.height
+      : Math.max(desktop ? 1.8 : 1.3, d * (desktop ? 0.42 : mobile ? 0.32 : 0.26));
     const lh = (lw * lab.c.height) / lab.c.width;
     l.position.set(o.x, cy + fs / 2 + lh / 2 + 0.05 * lw, o.z);
     const labelScale = 0.8 + 0.2 * animation.amount;
@@ -185,7 +180,7 @@ function Slot({ i, mobile = false, desktop = false }: { i: number; mobile?: bool
     const key = `${o.id}|${det.m.estado}|${Math.round(det.d)}|${Math.round(det.m.similitud * 100)}|${det.ident?.nombre ?? det.idAnomalia?.nombre ?? ''}|${det.m.ref?.fuente ?? ''}`;
     if (l.visible && key !== lab.key) {
       lab.key = key;
-      drawLabel(lab.g, lab.c.width, lab.c.height, det, desktop);
+      drawLabel(lab.g, lab.c.width, lab.c.height, det, desktop, largeMobile);
       lab.t.needsUpdate = true;
     }
     const pulse = det.m.interes >= 0.5 ? 0.75 + 0.25 * Math.sin(state.clock.elapsedTime * 6) : 1;
