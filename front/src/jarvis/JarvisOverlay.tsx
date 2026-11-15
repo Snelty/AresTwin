@@ -18,6 +18,7 @@ import { SITES } from '../lib/sites';
 import { missionView } from '../mission/mission';
 import { LEVEL_COLOR } from '../hud/bio';
 import { FichaPanel } from './FichaPanel';
+import { HUD_FEATURES } from '../hud/features';
 
 /** Aiming reticle at the centre of the view (the analysis card reads what is under it). */
 function Reticle() {
@@ -319,7 +320,7 @@ export function JarvisOverlay({ anchor = 'visor', stereo = false, mobile = false
       <mesh ref={tape} material={tapeMat} renderOrder={1001} frustumCulled={false} visible={false}>
         <planeGeometry args={[1, 1]} />
       </mesh>
-      {anchor === 'visor' && panels && <FichaPanel stereo={stereo} mobile={mobile} />}
+      {HUD_FEATURES.analysis && anchor === 'visor' && panels && <FichaPanel stereo={stereo} mobile={mobile} />}
       {anchor === 'visor' && <Reticle />}
       {Array.from({ length: !panels ? 2 : mobile ? 4 : SLOTS }).map((_, i) => (
         <Slot key={i} i={i} mobile={mobile} desktop={panels && !mobile} />

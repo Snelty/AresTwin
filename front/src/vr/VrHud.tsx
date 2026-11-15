@@ -8,6 +8,7 @@ import { CLASE_NOMBRE } from '../jarvis/catalog';
 import { drawNav } from '../nav/drawNav';
 import { SITES } from '../lib/sites';
 import { vrHudLayout } from './vrHudLayout';
+import { HUD_FEATURES } from '../hud/features';
 import { coolingAmount, temperature, THERMAL_COLORS, THERMAL_MIN_C, THERMAL_MAX_C } from '../sim/temperature';
 
 const D = 0.6;
@@ -105,8 +106,11 @@ export function VrHud({ stereo, latencyMs = NaN }: { stereo: boolean; latencyMs?
       last.current.vitals = t;
       vitals(assets.oxygen, 'OXÍGENO', `${fmt(bio.O2)} L`, `${Math.round(100 * bio.O2 / Math.max(bio.O2_0, 1))}% · ≈${Math.floor(minutesLeft())} min`, LEVEL_COLOR[level()]);
       vitals(assets.pulse, 'PULSO', `${Math.round(bio.FC)} lpm`, `VO₂ ${fmt(bio.VO2)} L/min`, bio.FC > 170 ? LEVEL_COLOR.rojo : bio.FC > 150 ? LEVEL_COLOR.ambar : CYAN);
-      analysis(assets.analysis);
-      assets.oxygen.texture.needsUpdate = assets.pulse.texture.needsUpdate = assets.analysis.texture.needsUpdate = true;
+      if (HUD_FEATURES.analysis) {
+        analysis(assets.analysis);
+        assets.analysis.texture.needsUpdate = true;
+      }
+      assets.oxygen.texture.needsUpdate = assets.pulse.texture.needsUpdate = true;
       const g = assets.latency.context;
       g.clearRect(0, 0, 256, 64);
       g.font = `bold 36px ${FONT}`; g.textAlign = 'center'; g.fillStyle = '#d8e6f2';
@@ -127,11 +131,11 @@ export function VrHud({ stereo, latencyMs = NaN }: { stereo: boolean; latencyMs?
     for (const [mesh, rect] of [[oxygen.current, layout.oxygen], [pulse.current, layout.pulse], [info.current, layout.analysis], [map.current, layout.map], [latency.current, layout.latency], [climate.current, layout.climate]] as const) {
       mesh.position.set(rect.x, rect.y, -D); mesh.scale.set(rect.w, rect.h, 1);
     }
-    info.current.visible = jarvis.on && !!jarvis.foco;
+    info.current.visible = HUD_FEATURES.analysis && jarvis.on && !!jarvis.foco;
   }, 0.5);
   return <group ref={group}>
     <mesh ref={oxygen} material={assets.oxygen.material} renderOrder={1000} frustumCulled={false}><planeGeometry args={[1, 1]} /></mesh>
-    <mesh ref={info} material={assets.analysis.material} renderOrder={1000} frustumCulled={false}><planeGeometry args={[1, 1]} /></mesh>
+    <mesh ref={info} material={assets.analysis.material} renderOrder={1000} frustumCulled={false} visible={HUD_FEATURES.analysis}><planeGeometry args={[1, 1]} /></mesh>
     <mesh ref={pulse} material={assets.pulse.material} renderOrder={1000} frustumCulled={false}><planeGeometry args={[1, 1]} /></mesh>
     <mesh ref={map} material={assets.map.material} renderOrder={1000} frustumCulled={false}><planeGeometry args={[1, 1]} /></mesh>
     <mesh ref={latency} material={assets.latency.material} renderOrder={1000} frustumCulled={false}><planeGeometry args={[1, 1]} /></mesh>
