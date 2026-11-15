@@ -50,14 +50,14 @@ export function NavPanel({ stereo = false, onPick }: { stereo?: boolean; onPick?
     const halfH = D * Math.tan(((camera.fov ?? 70) * Math.PI) / 360);
     const halfW = halfH * (camera.aspect / (stereo ? 2 : 1));
     // Upper-right corner, under the heading tape and above the biometrics panel.
-    const ph = Math.min(halfH * 0.88, halfW * 0.52 * (NAV_H / NAV_W));
+    const ph = Math.min(halfH * 1.20, halfW * 0.58 * (NAV_H / NAV_W));
     const pw = ph * (NAV_W / NAV_H);
     m.position.copy(camera.position);
     m.quaternion.copy(camera.quaternion);
     m.translateX(halfW - pw * 0.5 - halfW * 0.04);
     m.translateY(halfH * 0.72 - ph * 0.5);
     m.translateZ(-D);
-    m.rotateY(-0.22); // turned toward the eye, like the inside of a curved visor
+    m.rotateY(-0.08);
     m.scale.set(pw, ph, 1);
   }, 0.5);
 

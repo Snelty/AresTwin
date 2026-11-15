@@ -409,7 +409,7 @@ export function SpectatorView() {
       </Canvas>
 
       {/* Top bar: always there, small. */}
-      <div className="absolute top-3 left-3 right-3 flex items-start gap-2 pointer-events-none">
+      <div className="absolute top-3 left-3 right-[140px] flex items-start gap-2 pointer-events-none">
         <div className="glass pointer-events-auto flex items-center gap-2 px-2.5 py-1.5 text-[12.5px] text-slate-200">
           <button onClick={toggleMenu} title="Mostrar u ocultar el menú (M)" className={`${btn} ${tab ? 'border-cyan-300/70 text-cyan-100' : 'border-slate-600'}`}>
             ☰ Menú
@@ -568,28 +568,22 @@ export function SpectatorView() {
         </div>
       )}
 
-      {/* Laptop: the suit's navigation map as a corner card (third person; in first person it is on the visor, also clickable). */}
+      {/* Three icon controls stay above the visor map in both camera modes. */}
       {status !== 'loading' && (
-        <div data-ui className={`absolute bottom-3 right-3 ${mapUi.grande ? 'w-[min(420px,40vw)]' : 'w-[clamp(190px,17vw,260px)]'} glass p-1.5 space-y-1`}>
-          <div className="flex items-center gap-1 text-[11.5px] text-slate-300">
-            <button onClick={() => zoom(-1)} title="Acercar" className="w-6 h-6 rounded border border-slate-600 hover:bg-white/10">＋</button>
-            <button onClick={() => zoom(1)} title="Alejar" className="w-6 h-6 rounded border border-slate-600 hover:bg-white/10">－</button>
-            <span className="font-mono text-slate-400 px-1">{mapUi.rango} m</span>
-            <span className="flex-1" />
-            {nav.code === 'D' && (
-              <button onClick={() => cancelarDestino()} title="Quitar el destino marcado" className="px-1.5 h-6 rounded border border-amber-400/60 text-amber-200 hover:bg-amber-400/10">✕ destino</button>
-            )}
-            <button onClick={() => setMapUi((m) => ({ ...m, grande: !m.grande }))} title="Agrandar o achicar" className="w-6 h-6 rounded border border-slate-600 hover:bg-white/10">
+        <>
+          <div data-ui role="group" aria-label="Controles del mapa" className="absolute top-3 right-3 flex gap-1 glass p-1 text-slate-200">
+            <button onClick={() => zoom(-1)} title="Acercar mapa" aria-label="Acercar mapa" className="w-8 h-8 rounded hover:bg-white/10">＋</button>
+            <button onClick={() => zoom(1)} title="Alejar mapa" aria-label="Alejar mapa" className="w-8 h-8 rounded hover:bg-white/10">－</button>
+            <button onClick={() => setMapUi((m) => ({ ...m, grande: !m.grande }))} title={mapUi.grande ? 'Reducir mapa' : 'Ampliar mapa'} aria-label={mapUi.grande ? 'Reducir mapa' : 'Ampliar mapa'} aria-pressed={mapUi.grande} className="w-8 h-8 rounded hover:bg-white/10">
               {mapUi.grande ? '⤡' : '⤢'}
             </button>
           </div>
-          {thirdPerson || mapUi.grande ? (
-            <NavMapDom className="w-full h-auto" onPick={pick} />
-          ) : (
-            <div className="text-[11px] text-slate-400 px-1 pb-0.5">El mapa está en el visor: hacé clic en él para marcar un destino.</div>
+          {(thirdPerson || mapUi.grande) && (
+            <div data-ui className={`absolute top-16 right-3 max-w-[calc(100vw-24px)] max-h-[calc(100vh-76px)] overflow-y-auto ${mapUi.grande ? 'w-[min(440px,44vw)]' : 'w-[clamp(240px,23vw,320px)]'}`}>
+              <NavMapDom className="w-full h-auto" onPick={pick} />
+            </div>
           )}
-          <div className="text-[10.5px] text-slate-500 px-1">{missionActive() ? 'Modo misión: destino del optimizador' : 'Clic en el mapa: ir a ese punto (A*)'}</div>
-        </div>
+        </>
       )}
       {status === 'loading' && <div className="absolute bottom-4 left-1/2 -translate-x-1/2 glass px-3 py-1.5 text-[12px] text-cyan-200">{REAL ? 'Cargando el terreno real (DEM, HiRISE, sitios CRISM)…' : 'Cargando Marte desde NASA Mars Trek…'}</div>}
     </div>

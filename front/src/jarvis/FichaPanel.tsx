@@ -13,19 +13,20 @@ import { crismAt, crismListo, cargarCrism } from '../lib/layers';
 import { MINERALES, REAL } from '../lib/realTerrain';
 import { SITES } from '../lib/sites';
 import { LEVEL_COLOR } from '../hud/bio';
+import { wrapCanvasText } from '../lib/canvasText';
 
 const FONT = 'ui-monospace, Consolas, "Courier New", monospace';
 const CYAN = '#00f3ff';
 const STAR = '#ffd84d';
 const W = 520;
-const H = 640;
+const H = 880;
 const D = 0.6;
 const fmt = (v: number, d = 1) => v.toFixed(d).replace('.', ',');
 const pct = (v: number) => `${Math.round(v * 100)} %`;
 
 function drawFicha(g: CanvasRenderingContext2D, det: Detection | null) {
   g.clearRect(0, 0, W, H);
-  g.fillStyle = 'rgba(6, 14, 26, 0.62)';
+  g.fillStyle = 'rgba(6, 14, 26, 0.88)';
   g.strokeStyle = CYAN;
   g.lineWidth = 3;
   g.beginPath();
@@ -34,16 +35,17 @@ function drawFicha(g: CanvasRenderingContext2D, det: Detection | null) {
   g.stroke();
   let y = 52;
   const line = (t: string, col = '#d8e6f2', size = 28, bold = false, gap = 12) => {
-    let s = size;
-    g.font = `${bold ? 'bold ' : ''}${s}px ${FONT}`;
-    while (s > 18 && g.measureText(t).width > W - 48) g.font = `${bold ? 'bold ' : ''}${(s -= 2)}px ${FONT}`;
+    const s = Math.max(30, Math.round(size * 1.15));
+    g.font = `${bold ? '700' : '600'} ${s}px ${FONT}`;
     g.fillStyle = col;
-    g.fillText(t, 24, y);
-    y += s + gap;
+    for (const row of wrapCanvasText(g, t, W - 48)) {
+      g.fillText(row, 24, y);
+      y += s + gap;
+    }
   };
   g.textAlign = 'left';
   g.fillStyle = CYAN;
-  g.font = `24px ${FONT}`;
+  g.font = `bold 28px ${FONT}`;
   g.fillText(`ANÁLISIS${det ? ` · ${det.o.id}` : ''}`, 24, y);
   g.textAlign = 'right';
   g.fillStyle = bd.estado === 'conectado' ? LEVEL_COLOR.ok : '#8aa0b4';
@@ -117,7 +119,7 @@ function drawFicha(g: CanvasRenderingContext2D, det: Detection | null) {
   }
 
   // What to do.
-  y = Math.max(y, H - 110);
+  y = Math.max(y, H - 220);
   if (m.interes >= 0.5) {
     line('★ DOCUMENTAR Y MUESTREAR', STAR, 30, true, 6);
     line(m.motivo, '#d8e6f2', 22);
@@ -163,14 +165,14 @@ export function FichaPanel({ stereo = false }: { stereo?: boolean }) {
     }
     const halfH = D * Math.tan(((camera.fov ?? 70) * Math.PI) / 360);
     const halfW = halfH * (camera.aspect / (stereo ? 2 : 1));
-    const ph = Math.min(halfH * 0.72, halfW * 0.5 * (H / W));
+    const ph = Math.min(halfH * 1.12, halfW * 0.62 * (H / W));
     const pw = ph * (W / H);
     me.position.copy(camera.position);
     me.quaternion.copy(camera.quaternion);
     me.translateX(-halfW + pw * 0.5 + halfW * 0.04);
     me.translateY(halfH * 0.72 - ph * 0.5);
     me.translateZ(-D);
-    me.rotateY(0.22);
+    me.rotateY(0.08);
     me.scale.set(pw, ph, 1);
   }, 0.5);
 
